@@ -1,42 +1,50 @@
 import React, { useEffect, useRef } from "react";
-import { View, Animated, StyleSheet } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
+
+import { colors } from "../theme/tokens";
 
 export default function TypingIndicator() {
-  const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
+  const dots = [
+    useRef(new Animated.Value(0)).current,
+    useRef(new Animated.Value(0)).current,
+    useRef(new Animated.Value(0)).current,
+  ];
 
   useEffect(() => {
-    const animations = dots.map((dot, i) =>
+    const animations = dots.map((dot, index) =>
       Animated.loop(
         Animated.sequence([
-          Animated.delay(i * 150),
+          Animated.delay(index * 150),
           Animated.timing(dot, { toValue: 1, duration: 300, useNativeDriver: true }),
           Animated.timing(dot, { toValue: 0, duration: 300, useNativeDriver: true }),
         ])
       )
     );
-    animations.forEach((a) => a.start());
-    return () => animations.forEach((a) => a.stop());
+
+    animations.forEach((animation) => animation.start());
+    return () => animations.forEach((animation) => animation.stop());
   }, []);
 
   return (
     <View style={styles.container}>
-      {dots.map((dot, i) => (
-        <Animated.View
-          key={i}
-          style={[styles.dot, { opacity: dot }]}
-        />
+      {dots.map((dot, index) => (
+        <Animated.View key={index} style={[styles.dot, { opacity: dot }]} />
       ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: "row", alignItems: "center", paddingVertical: 4 },
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
   dot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
-    backgroundColor: "#8E8E93",
-    marginHorizontal: 3,
+    backgroundColor: colors.accent,
+    marginHorizontal: 4,
   },
 });

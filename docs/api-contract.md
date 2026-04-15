@@ -31,12 +31,13 @@ PUT    /notes/{id}         → Note
 DELETE /notes/{id}         → 204
 ```
 
-## Todos
+## ToDo
 
 ```
 GET    /todos              → Todo[]  (?show_completed=false)
 POST   /todos              → Todo (201)
 GET    /todos/{id}         → Todo
+PUT    /todos/{id}         → Todo
 PATCH  /todos/{id}/complete → Todo
 DELETE /todos/{id}         → 204
 ```

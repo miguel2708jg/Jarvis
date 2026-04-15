@@ -75,6 +75,23 @@ async def test_create_and_complete_todo(app):
 
 
 @pytest.mark.asyncio
+async def test_update_todo(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.post("/todos", json={"text": "Original task", "priority": "low"})
+        assert r.status_code == 201
+        todo_id = r.json()["id"]
+
+        r = await client.put(
+            f"/todos/{todo_id}",
+            json={"text": "Updated task", "priority": "high", "due_date": "2026-05-05"},
+        )
+        assert r.status_code == 200
+        assert r.json()["text"] == "Updated task"
+        assert r.json()["priority"] == "high"
+        assert r.json()["due_date"].startswith("2026-05-05")
+
+
+@pytest.mark.asyncio
 @pytest.mark.integration
 async def test_create_calendar_event(app):
     pytest.importorskip("google.oauth2", reason="Google auth libraries not installed")

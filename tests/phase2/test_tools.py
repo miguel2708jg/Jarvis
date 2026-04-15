@@ -77,6 +77,20 @@ def test_complete_todo():
     assert completed["completed"] is True
 
 
+def test_update_todo():
+    from backend.tools.todos import create_todo, update_todo
+    todo = create_todo.invoke({"text": "Draft spec", "priority": "low"})
+    updated = update_todo.invoke({
+        "todo_id": todo["id"],
+        "text": "Draft product spec",
+        "priority": "high",
+        "due_date": "2026-05-01",
+    })
+    assert updated["text"] == "Draft product spec"
+    assert updated["priority"] == "high"
+    assert updated["due_date"].startswith("2026-05-01")
+
+
 def test_list_todos_hides_completed_by_default():
     from backend.tools.todos import create_todo, complete_todo, list_todos
     todo = create_todo.invoke({"text": "Done task"})

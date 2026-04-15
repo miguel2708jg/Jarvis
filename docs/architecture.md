@@ -14,7 +14,7 @@ FastAPI  ──────────  LangGraph Agent
                           │
                       Tool calls
                     ┌─────┼─────┐
-                  Notes Todos Calendar Email
+                  Notes ToDo Calendar Email
                     │
                 JSON File Store (swappable → SQLite / DynamoDB)
 ```

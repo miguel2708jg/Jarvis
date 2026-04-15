@@ -10,6 +10,24 @@ from backend.models.chat import ChatRequest, ChatResponse, StreamChunk
 router = APIRouter()
 
 
+def _extract_text_content(payload) -> str:
+    """Extract plain text from LangChain message/chunk payloads."""
+    content = getattr(payload, "content", payload)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts).strip()
+    return ""
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, graph=Depends(get_jarvis_graph)):
     """Blocking chat endpoint. Invokes the graph and returns the final AI response."""
@@ -36,53 +54,64 @@ async def ws_chat(websocket: WebSocket, graph=Depends(get_jarvis_graph)):
     try:
         while True:
             raw = await websocket.receive_text()
-            data = json.loads(raw)
-            message = data.get("message", "")
-            session_id = data.get("session_id", "default")
+            try:
+                data = json.loads(raw)
+                message = data.get("message", "")
+                session_id = data.get("session_id", "default")
+                model_streamed_text = False
 
-            async for event in graph.astream_events(
-                {
-                    "messages": [HumanMessage(content=message)],
-                    "session_id": session_id,
-                },
-                version="v2",
-            ):
-                kind = event["event"]
+                async for event in graph.astream_events(
+                    {
+                        "messages": [HumanMessage(content=message)],
+                        "session_id": session_id,
+                    },
+                    version="v2",
+                ):
+                    kind = event["event"]
 
-                if kind == "on_chat_model_stream":
-                    chunk = event["data"]["chunk"]
-                    token = chunk.content if hasattr(chunk, "content") else ""
-                    if token:
+                    if kind == "on_chat_model_start":
+                        model_streamed_text = False
+
+                    elif kind == "on_chat_model_stream":
+                        chunk = event["data"]["chunk"]
+                        token = _extract_text_content(chunk)
+                        if token:
+                            model_streamed_text = True
+                            await websocket.send_text(
+                                StreamChunk(type="token", content=token).model_dump_json()
+                            )
+
+                    elif kind == "on_chat_model_end":
+                        output = event["data"].get("output")
+                        token = _extract_text_content(output)
+                        if token and not model_streamed_text:
+                            await websocket.send_text(
+                                StreamChunk(type="token", content=token).model_dump_json()
+                            )
+
+                    elif kind == "on_tool_start":
                         await websocket.send_text(
-                            StreamChunk(type="token", content=token).model_dump_json()
+                            StreamChunk(
+                                type="tool_start",
+                                tool_name=event.get("name"),
+                                tool_input=event["data"].get("input"),
+                            ).model_dump_json()
                         )
 
-                elif kind == "on_tool_start":
-                    await websocket.send_text(
-                        StreamChunk(
-                            type="tool_start",
-                            tool_name=event.get("name"),
-                            tool_input=event["data"].get("input"),
-                        ).model_dump_json()
-                    )
+                    elif kind == "on_tool_end":
+                        await websocket.send_text(
+                            StreamChunk(
+                                type="tool_end",
+                                tool_name=event.get("name"),
+                                tool_output=event["data"].get("output"),
+                            ).model_dump_json()
+                        )
 
-                elif kind == "on_tool_end":
-                    await websocket.send_text(
-                        StreamChunk(
-                            type="tool_end",
-                            tool_name=event.get("name"),
-                            tool_output=event["data"].get("output"),
-                        ).model_dump_json()
-                    )
-
-            await websocket.send_text(StreamChunk(type="done").model_dump_json())
+                await websocket.send_text(StreamChunk(type="done").model_dump_json())
+            except Exception as exc:
+                await websocket.send_text(
+                    StreamChunk(type="error", content=str(exc)).model_dump_json()
+                )
 
     except WebSocketDisconnect:
         pass
-    except Exception as exc:
-        try:
-            await websocket.send_text(
-                StreamChunk(type="error", content=str(exc)).model_dump_json()
-            )
-        except Exception:
-            pass

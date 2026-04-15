@@ -10,12 +10,14 @@ class Settings(BaseSettings):
     aws_access_key_id: str | None = Field(default=None, alias="AWS_ACCESS_KEY_ID")
     aws_secret_access_key: str | None = Field(default=None, alias="AWS_SECRET_ACCESS_KEY")
     bedrock_model_id: str = Field(
-        default="us.anthropic.claude-sonnet-4-5",
+        default="anthropic.claude-sonnet-4-5-20250929-v1:0",
         alias="BEDROCK_MODEL_ID",
     )
 
     # Storage
-    data_dir: str = Field(default="data", alias="DATA_DIR")
+    data_dir: str = Field(default="Data", alias="DATA_DIR")
+    database_path: str | None = Field(default=None, alias="DATABASE_PATH")
+    assistant_timezone: str | None = Field(default=None, alias="ASSISTANT_TIMEZONE")
 
     # Gmail (Phase 2)
     gmail_credentials_file: str | None = Field(default=None, alias="GMAIL_CREDENTIALS_FILE")

@@ -1,6 +1,9 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+
 import type { ChatMessage } from "../api/types";
+import { colors, radii, shadows } from "../theme/tokens";
+import StreamingText from "./StreamingText";
 import TypingIndicator from "./TypingIndicator";
 
 interface Props {
@@ -12,14 +15,31 @@ export default function MessageBubble({ message }: Props) {
 
   return (
     <View style={[styles.row, isUser ? styles.rowRight : styles.rowLeft]}>
-      <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
-        {message.isStreaming && message.content === "" ? (
-          <TypingIndicator />
-        ) : (
-          <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>
-            {message.content}
-          </Text>
-        )}
+      {!isUser ? (
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>J</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.stack}>
+        <Text style={[styles.label, isUser ? styles.userLabel : styles.aiLabel]}>
+          {isUser ? "You" : "Jarvis"}
+        </Text>
+
+        <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
+          {message.isStreaming && message.content === "" ? (
+            <TypingIndicator />
+          ) : message.isStreaming ? (
+            <StreamingText
+              text={message.content}
+              style={[styles.text, isUser ? styles.userText : styles.aiText]}
+            />
+          ) : (
+            <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>
+              {message.content}
+            </Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -27,21 +47,76 @@ export default function MessageBubble({ message }: Props) {
 
 const styles = StyleSheet.create({
   row: {
-    marginVertical: 4,
-    marginHorizontal: 12,
+    marginBottom: 16,
+    marginHorizontal: 16,
     flexDirection: "row",
+    alignItems: "flex-end",
   },
-  rowRight: { justifyContent: "flex-end" },
-  rowLeft: { justifyContent: "flex-start" },
+  rowRight: {
+    justifyContent: "flex-end",
+  },
+  rowLeft: {
+    justifyContent: "flex-start",
+  },
+  stack: {
+    maxWidth: "82%",
+  },
+  avatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.ink,
+    marginRight: 10,
+    marginBottom: 6,
+  },
+  avatarText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  aiLabel: {
+    color: colors.textSoft,
+  },
+  userLabel: {
+    color: colors.accentStrong,
+    textAlign: "right",
+  },
   bubble: {
-    maxWidth: "80%",
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: radii.md,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  userBubble: { backgroundColor: "#007AFF" },
-  aiBubble: { backgroundColor: "#F2F2F7" },
-  text: { fontSize: 16, lineHeight: 22 },
-  userText: { color: "#FFFFFF" },
-  aiText: { color: "#1C1C1E" },
+  userBubble: {
+    backgroundColor: colors.accentSoft,
+    borderTopRightRadius: 6,
+    borderWidth: 1,
+    borderColor: "#BCECF1",
+  },
+  aiBubble: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(23, 32, 51, 0.08)",
+    ...shadows.soft,
+  },
+  text: {
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  userText: {
+    color: colors.ink,
+  },
+  aiText: {
+    color: colors.text,
+  },
 });

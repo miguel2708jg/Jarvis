@@ -54,3 +54,8 @@ export interface StreamChunk {
   tool_input?: Record<string, unknown>;
   tool_output?: unknown;
 }
+
+export interface ToolActivity {
+  name: string;
+  phase: "running" | "completed";
+}

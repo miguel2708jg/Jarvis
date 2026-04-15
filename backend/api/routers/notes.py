@@ -1,6 +1,6 @@
 """REST endpoints for Notes."""
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.models.note import Note
 from backend.services import notes_service
@@ -11,7 +11,7 @@ router = APIRouter()
 class NoteCreate(BaseModel):
     title: str
     content: str
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
 
 
 class NoteUpdate(BaseModel):

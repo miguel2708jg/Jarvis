@@ -51,3 +51,13 @@ def reset_graph():
     """Reset the singleton (useful for tests)."""
     global _graph
     _graph = None
+
+
+def get_graph_with_memory(tools: list | None = None):
+    """
+    Get graph with thread memory persistence enabled.
+    
+    The graph will automatically load and save conversation history
+    from/to SQLite based on the thread_id in the state.
+    """
+    return get_graph(tools=tools)

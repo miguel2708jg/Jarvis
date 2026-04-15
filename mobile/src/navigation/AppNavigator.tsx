@@ -1,13 +1,15 @@
 import React from "react";
+import { StyleSheet, View } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 
+import CalendarScreen from "../screens/CalendarScreen";
 import ChatScreen from "../screens/ChatScreen";
+import EmailScreen from "../screens/EmailScreen";
 import NotesScreen from "../screens/NotesScreen";
 import TodosScreen from "../screens/TodosScreen";
-import CalendarScreen from "../screens/CalendarScreen";
-import EmailScreen from "../screens/EmailScreen";
+import { colors, radii, shadows } from "../theme/tokens";
 
 const Tab = createBottomTabNavigator();
 
@@ -21,7 +23,7 @@ const TABS: {
 }[] = [
   { name: "Chat", component: ChatScreen, icon: "chatbubble-outline", activeIcon: "chatbubble" },
   { name: "Notes", component: NotesScreen, icon: "document-text-outline", activeIcon: "document-text" },
-  { name: "Todos", component: TodosScreen, icon: "checkmark-circle-outline", activeIcon: "checkmark-circle" },
+  { name: "ToDo", component: TodosScreen, icon: "checkmark-circle-outline", activeIcon: "checkmark-circle" },
   { name: "Calendar", component: CalendarScreen, icon: "calendar-outline", activeIcon: "calendar" },
   { name: "Email", component: EmailScreen, icon: "mail-outline", activeIcon: "mail" },
 ];
@@ -31,15 +33,19 @@ export default function AppNavigator() {
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={({ route }) => ({
+          headerShown: false,
+          sceneContainerStyle: { backgroundColor: colors.background },
+          tabBarHideOnKeyboard: true,
+          tabBarActiveTintColor: colors.accent,
+          tabBarInactiveTintColor: "#8B98AE",
+          tabBarLabelStyle: styles.tabBarLabel,
+          tabBarStyle: styles.tabBar,
+          tabBarItemStyle: styles.tabBarItem,
+          tabBarBackground: () => <View style={styles.tabBarBackground} />,
           tabBarIcon: ({ focused, color, size }) => {
-            const tab = TABS.find((t) => t.name === route.name)!;
+            const tab = TABS.find((item) => item.name === route.name)!;
             return <Ionicons name={focused ? tab.activeIcon : tab.icon} size={size} color={color} />;
           },
-          tabBarActiveTintColor: "#007AFF",
-          tabBarInactiveTintColor: "#8E8E93",
-          tabBarStyle: { borderTopColor: "#C6C6C8" },
-          headerStyle: { backgroundColor: "#FFFFFF" },
-          headerTitleStyle: { fontWeight: "600" },
         })}
       >
         {TABS.map((tab) => (
@@ -49,3 +55,32 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 16,
+    height: 74,
+    borderTopWidth: 0,
+    backgroundColor: "transparent",
+    elevation: 0,
+  },
+  tabBarBackground: {
+    flex: 1,
+    borderRadius: radii.lg,
+    backgroundColor: colors.tabBar,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    ...shadows.card,
+  },
+  tabBarItem: {
+    paddingTop: 8,
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+});

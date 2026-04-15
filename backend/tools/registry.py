@@ -1,6 +1,13 @@
 """Central tool registry — add new tools here only, no graph changes needed."""
 from backend.tools.notes import create_note, list_notes, get_note, update_note, delete_note
-from backend.tools.todos import create_todo, list_todos, complete_todo, delete_todo
+from backend.tools.todos import (
+    create_todo,
+    list_todos,
+    get_todo,
+    update_todo,
+    complete_todo,
+    delete_todo,
+)
 from backend.tools.calendar import (
     create_calendar_event,
     list_calendar_events,
@@ -20,6 +27,8 @@ ALL_TOOLS = [
     # Todos
     create_todo,
     list_todos,
+    get_todo,
+    update_todo,
     complete_todo,
     delete_todo,
     # Calendar

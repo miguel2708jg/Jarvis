@@ -15,7 +15,7 @@ All tools are registered in `backend/tools/registry.py`. To add a new tool:
 | `update_note(note_id, title?, content?, tags?)` | Update note fields |
 | `delete_note(note_id)` | Delete a note |
 
-## Todos tools
+## ToDo tools
 
 | Tool | Description |
 |---|---|

@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
-class Note(BaseModel):
+class Message(BaseModel):
+    """Model for chat messages within a thread."""
+    
     id: str = Field(default_factory=lambda: str(uuid4()))
-    title: str
+    thread_id: str
+    role: Literal["user", "assistant", "system"] = "user"
     content: str
-    tags: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

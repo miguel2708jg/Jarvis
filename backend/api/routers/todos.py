@@ -1,7 +1,7 @@
 """REST endpoints for Todos."""
 from typing import Literal
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.models.todo import Todo
 from backend.services import todos_service
@@ -13,6 +13,13 @@ class TodoCreate(BaseModel):
     text: str
     priority: Literal["low", "medium", "high"] = "medium"
     due_date: str | None = None
+
+
+class TodoUpdate(BaseModel):
+    text: str | None = None
+    priority: Literal["low", "medium", "high"] | None = None
+    due_date: str | None = Field(default=None)
+    completed: bool | None = None
 
 
 @router.get("", response_model=list[Todo])
@@ -28,6 +35,21 @@ def create_todo(body: TodoCreate):
 @router.get("/{todo_id}", response_model=Todo)
 def get_todo(todo_id: str):
     data = todos_service.get_todo(todo_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Todo not found")
+    return data
+
+
+@router.put("/{todo_id}", response_model=Todo)
+def update_todo(todo_id: str, body: TodoUpdate):
+    due_date = body.due_date if "due_date" in body.model_fields_set else todos_service._UNSET
+    data = todos_service.update_todo(
+        todo_id,
+        text=body.text,
+        priority=body.priority,
+        due_date=due_date,
+        completed=body.completed,
+    )
     if not data:
         raise HTTPException(status_code=404, detail="Todo not found")
     return data

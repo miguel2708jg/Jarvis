@@ -59,3 +59,48 @@ export interface ToolActivity {
   name: string;
   phase: "running" | "completed";
 }
+
+export type KnowledgePageType = "overview" | "entity" | "concept" | "source" | "analysis" | "unknown";
+
+export interface KnowledgeStatus {
+  vault_path: string;
+  initialized: boolean;
+  page_count: number;
+  source_count: number;
+  last_log_entry: string | null;
+}
+
+export interface KnowledgeSource {
+  source_id: string;
+  kind: "note" | "file";
+  title: string;
+  created_at: string;
+  raw_path: string;
+  extracted_path: string | null;
+  note_id: string | null;
+  original_filename: string | null;
+}
+
+export interface KnowledgePage {
+  path: string;
+  type: KnowledgePageType;
+  title: string;
+  summary: string;
+  updated_at: string;
+  source_ids: string[];
+  tags: string[];
+  aliases: string[];
+  score?: number | null;
+}
+
+export interface KnowledgePageDetail extends KnowledgePage {
+  body: string;
+  wikilinks: string[];
+}
+
+export interface KnowledgeIngestResult {
+  operation: "ingest_note" | "ingest_file" | "lint";
+  source: KnowledgeSource | null;
+  touched_pages: string[];
+  log_entry: string;
+}

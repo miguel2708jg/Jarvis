@@ -3,34 +3,37 @@
 Run: pytest tests/phase3/test_api_endpoints.py -v
 """
 import pytest
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture(autouse=True)
 def isolated_stores(monkeypatch, tmp_path):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     from backend.storage.json_store import JsonStore
+    from backend.storage.sqlite_store import SQLiteStore
+    from backend.config import settings
+    import backend.services.calendar_service as calendar_svc
     import backend.services.notes_service as notes_svc
     import backend.services.todos_service as todos_svc
+
+    monkeypatch.setattr(settings, "database_path", str(tmp_path / "jarvis.db"))
+    calendar_svc._store = SQLiteStore("calendar_events", calendar_svc.CALENDAR_SCHEMA)
     notes_svc._store = JsonStore("notes", data_dir=str(tmp_path))
     todos_svc._store = JsonStore("todos", data_dir=str(tmp_path))
 
 
 @pytest.fixture
 def app():
-    # Patch get_jarvis_graph so tests don't need Bedrock
-    from unittest.mock import MagicMock, AsyncMock
-    from backend.api import main as main_mod
+    # Patch get_jarvis_graph so tests don't need a real Ollama backend
+    from unittest.mock import AsyncMock, MagicMock
     import backend.api.dependencies as deps
 
     mock_graph = MagicMock()
-    mock_graph.ainvoke = AsyncMock(return_value={
-        "messages": [MagicMock(content="Hello from Jarvis!")]
-    })
+    mock_graph.ainvoke = AsyncMock(return_value={"messages": [MagicMock(content="Hello from Jarvis!")]})
     deps.get_jarvis_graph = lambda: mock_graph
 
     from backend.api.main import app
+
     return app
 
 
@@ -92,20 +95,114 @@ async def test_update_todo(app):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
-async def test_create_calendar_event(app):
-    pytest.importorskip("google.oauth2", reason="Google auth libraries not installed")
-    from backend.config import settings
-    if not settings.gcal_token_file or not settings.gmail_credentials_file:
-        pytest.skip("Google Calendar credentials not configured")
+async def test_calendar_crud(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.post("/calendar", json={
-            "title": "Team standup",
-            "start_datetime": "2024-12-01T09:00:00",
-            "end_datetime": "2024-12-01T09:30:00",
-        })
-    assert r.status_code == 201
-    assert r.json()["title"] == "Team standup"
+        r = await client.post(
+            "/calendar",
+            json={
+                "title": "Team standup",
+                "start_datetime": "2035-12-01T09:00:00",
+                "end_datetime": "2035-12-01T09:30:00",
+                "description": "Daily sync",
+                "location": "Room 1",
+            },
+        )
+        assert r.status_code == 201
+        event = r.json()
+        event_id = event["id"]
+        assert event["title"] == "Team standup"
+        assert event["description"] == "Daily sync"
+        assert event["location"] == "Room 1"
+
+        r = await client.get("/calendar")
+        assert r.status_code == 200
+        assert event_id in [item["id"] for item in r.json()]
+
+        r = await client.get(f"/calendar/{event_id}")
+        assert r.status_code == 200
+        assert r.json()["title"] == "Team standup"
+
+        r = await client.put(
+            f"/calendar/{event_id}",
+            json={
+                "title": "Updated standup",
+                "start_datetime": "2035-12-01T10:00:00",
+                "end_datetime": "2035-12-01T10:45:00",
+                "description": "Updated sync",
+                "location": "Room 2",
+            },
+        )
+        assert r.status_code == 200
+        assert r.json()["title"] == "Updated standup"
+        assert r.json()["start_datetime"].startswith("2035-12-01T10:00:00")
+        assert r.json()["end_datetime"].startswith("2035-12-01T10:45:00")
+        assert r.json()["description"] == "Updated sync"
+        assert r.json()["location"] == "Room 2"
+
+        r = await client.delete(f"/calendar/{event_id}")
+        assert r.status_code == 204
+
+        r = await client.get(f"/calendar/{event_id}")
+        assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_calendar_rejects_invalid_dates(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.post(
+            "/calendar",
+            json={
+                "title": "Bad date",
+                "start_datetime": "not-a-date",
+                "end_datetime": "2035-12-01T09:30:00",
+            },
+        )
+        assert r.status_code == 400
+
+        r = await client.post(
+            "/calendar",
+            json={
+                "title": "Backwards event",
+                "start_datetime": "2035-12-01T09:30:00",
+                "end_datetime": "2035-12-01T09:00:00",
+            },
+        )
+        assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_calendar_upcoming_filter(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        past = await client.post(
+            "/calendar",
+            json={
+                "title": "Past event",
+                "start_datetime": "2000-01-01T09:00:00",
+                "end_datetime": "2000-01-01T10:00:00",
+            },
+        )
+        future = await client.post(
+            "/calendar",
+            json={
+                "title": "Future event",
+                "start_datetime": "2035-01-01T09:00:00",
+                "end_datetime": "2035-01-01T10:00:00",
+            },
+        )
+        assert past.status_code == 201
+        assert future.status_code == 201
+
+        r = await client.get("/calendar")
+        assert r.status_code == 200
+        titles = [event["title"] for event in r.json()]
+        assert "Future event" in titles
+        assert "Past event" not in titles
+
+        r = await client.get("/calendar", params={"upcoming_only": False})
+        assert r.status_code == 200
+        titles = [event["title"] for event in r.json()]
+        assert "Past event" in titles
+        assert "Future event" in titles
 
 
 @pytest.mark.asyncio

@@ -5,25 +5,24 @@ from pydantic import Field
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # AWS / Bedrock
-    aws_region: str = Field(default="us-east-1", alias="AWS_REGION")
-    aws_access_key_id: str | None = Field(default=None, alias="AWS_ACCESS_KEY_ID")
-    aws_secret_access_key: str | None = Field(default=None, alias="AWS_SECRET_ACCESS_KEY")
-    bedrock_model_id: str = Field(
-        default="anthropic.claude-sonnet-4-5-20250929-v1:0",
-        alias="BEDROCK_MODEL_ID",
-    )
+    # Ollama
+    llm_provider: str = Field(default="ollama", alias="LLM_PROVIDER")
+    ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
+    ollama_model_id: str = Field(default="qwen3", alias="OLLAMA_MODEL_ID")
+    ollama_api_key: str | None = Field(default=None, alias="OLLAMA_API_KEY")
+    ollama_temperature: float = Field(default=0, alias="OLLAMA_TEMPERATURE")
 
     # Storage
     data_dir: str = Field(default="Data", alias="DATA_DIR")
     database_path: str | None = Field(default=None, alias="DATABASE_PATH")
+    knowledge_vault_path: str = Field(default="Data/knowledge_vault", alias="KNOWLEDGE_VAULT_PATH")
     assistant_timezone: str | None = Field(default=None, alias="ASSISTANT_TIMEZONE")
 
     # Gmail (Phase 2)
     gmail_credentials_file: str | None = Field(default=None, alias="GMAIL_CREDENTIALS_FILE")
     gmail_token_file: str | None = Field(default=None, alias="GMAIL_TOKEN_FILE")
 
-    # Google Calendar
+    # Legacy Google Calendar setting (unused; calendar events are local SQLite)
     gcal_token_file: str | None = Field(default=None, alias="GCAL_TOKEN_FILE")
 
     # API

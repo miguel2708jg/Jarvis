@@ -30,9 +30,12 @@ def list_events(upcoming_only: bool = Query(True), calendar_id: str = Query("pri
 
 @router.post("", status_code=201)
 def create_event(body: EventCreate, calendar_id: str = Query("primary")):
-    return calendar_service.create_calendar_event(
-        body.title, body.start_datetime, body.end_datetime, body.description, body.location, calendar_id
-    )
+    try:
+        return calendar_service.create_calendar_event(
+            body.title, body.start_datetime, body.end_datetime, body.description, body.location, calendar_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{event_id}")
@@ -45,9 +48,12 @@ def get_event(event_id: str, calendar_id: str = Query("primary")):
 
 @router.put("/{event_id}")
 def update_event(event_id: str, body: EventUpdate, calendar_id: str = Query("primary")):
-    data = calendar_service.update_calendar_event(
-        event_id, body.title, body.start_datetime, body.end_datetime, body.description, body.location, calendar_id
-    )
+    try:
+        data = calendar_service.update_calendar_event(
+            event_id, body.title, body.start_datetime, body.end_datetime, body.description, body.location, calendar_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not data:
         raise HTTPException(status_code=404, detail="Event not found")
     return data

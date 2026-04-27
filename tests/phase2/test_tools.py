@@ -1,4 +1,4 @@
-"""Phase 2: Unit tests for Notes and Todos tools (no Bedrock required).
+"""Phase 2: Unit tests for Notes and Todos tools (no Ollama required).
 
 Run: pytest tests/phase2/test_tools.py -v
 """

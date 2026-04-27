@@ -21,7 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Note } from "../api/types";
 import ModuleHero from "../components/ModuleHero";
 import ScreenBackground from "../components/ScreenBackground";
-import { useNotes } from "../hooks/useJarvisApi";
+import { useKnowledge, useNotes } from "../hooks/useJarvisApi";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
 
 type NoteDraft = {
@@ -54,6 +54,7 @@ function parseTags(value: string): string[] {
 
 export default function NotesScreen() {
   const { items: notes, loading, error, refresh, create, update, remove } = useNotes();
+  const { ingestNote } = useKnowledge();
   const [draft, setDraft] = useState<NoteDraft>(EMPTY_DRAFT);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -105,6 +106,15 @@ export default function NotesScreen() {
       },
     ]);
   }, [remove]);
+
+  const handleAddToKnowledge = useCallback(async (note: Note) => {
+    const result = await ingestNote(note.id);
+    if (!result) {
+      Alert.alert("Ingest failed", "The note could not be added to the knowledge vault.");
+      return;
+    }
+    Alert.alert("Knowledge updated", `${result.touched_pages.length} page(s) updated.`);
+  }, [ingestNote]);
 
   const handleSave = useCallback(async () => {
     const title = draft.title.trim();
@@ -194,11 +204,8 @@ export default function NotesScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => openEditModal(item)}
-            onLongPress={() => handleDelete(item)}
-          >
+          <View style={styles.card}>
+            <TouchableOpacity onPress={() => openEditModal(item)} onLongPress={() => handleDelete(item)}>
             <View style={styles.cardHeader}>
               <View style={styles.cardTitleWrap}>
                 <Text style={styles.title}>{item.title}</Text>
@@ -220,7 +227,13 @@ export default function NotesScreen() {
                 ))}
               </View>
             ) : null}
-          </TouchableOpacity>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.knowledgeButton} onPress={() => handleAddToKnowledge(item)}>
+              <Ionicons name="library-outline" size={14} color={colors.accentStrong} />
+              <Text style={styles.knowledgeButtonText}>Add to Knowledge</Text>
+            </TouchableOpacity>
+          </View>
         )}
       />
 
@@ -497,5 +510,21 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  knowledgeButton: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderRadius: radii.pill,
+    backgroundColor: colors.accentSoft,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  knowledgeButtonText: {
+    color: colors.accentStrong,
+    fontSize: 12,
+    fontWeight: "800",
+    marginLeft: 8,
   },
 });

@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import CalendarScreen from "../screens/CalendarScreen";
 import ChatScreen from "../screens/ChatScreen";
 import EmailScreen from "../screens/EmailScreen";
+import KnowledgeScreen from "../screens/KnowledgeScreen";
 import NotesScreen from "../screens/NotesScreen";
 import TodosScreen from "../screens/TodosScreen";
 import { colors, radii, shadows } from "../theme/tokens";
@@ -23,6 +24,7 @@ const TABS: {
 }[] = [
   { name: "Chat", component: ChatScreen, icon: "chatbubble-outline", activeIcon: "chatbubble" },
   { name: "Notes", component: NotesScreen, icon: "document-text-outline", activeIcon: "document-text" },
+  { name: "Knowledge", component: KnowledgeScreen, icon: "library-outline", activeIcon: "library" },
   { name: "ToDo", component: TodosScreen, icon: "checkmark-circle-outline", activeIcon: "checkmark-circle" },
   { name: "Calendar", component: CalendarScreen, icon: "calendar-outline", activeIcon: "calendar" },
   { name: "Email", component: EmailScreen, icon: "mail-outline", activeIcon: "mail" },

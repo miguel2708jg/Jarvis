@@ -26,6 +26,7 @@ token.json
 .pytest_cache/
 .coverage
 htmlcov/
+logs/
 
 # Node / Expo
 mobile/node_modules/

@@ -2,8 +2,8 @@
 
 All tools are registered in `backend/tools/registry.py`. To add a new tool:
 
-1. Create a function decorated with `@tool` in the appropriate module
-2. Add it to `ALL_TOOLS` in `registry.py` — no graph changes required
+1. Create a function decorated with `@tool` in the appropriate module.
+2. Add it to `ALL_TOOLS` in `registry.py` (no graph changes needed).
 
 ## Notes tools
 
@@ -26,10 +26,12 @@ All tools are registered in `backend/tools/registry.py`. To add a new tool:
 
 ## Calendar tools
 
+Calendar tools manage local SQLite events through the same backend database used by other local modules.
+
 | Tool | Description |
 |---|---|
 | `create_calendar_event(title, start_datetime, end_datetime, description?, location?)` | Create an event |
-| `list_calendar_events()` | List all events sorted by start time |
+| `list_calendar_events(upcoming_only?)` | List local events sorted by start time |
 | `get_calendar_event(event_id)` | Fetch an event by ID |
 | `delete_calendar_event(event_id)` | Delete an event |
 
@@ -44,6 +46,15 @@ Requires `GMAIL_CREDENTIALS_FILE` and `GMAIL_TOKEN_FILE` in `.env`.
 | `send_email(to, subject, body)` | Send an email |
 | `search_emails(query, max_results?)` | Search with Gmail query syntax |
 
+## Knowledge tools
+
+| Tool | Description |
+|---|---|
+| `search_knowledge_pages(query, page_type?, limit?)` | Lexical search over knowledge index metadata |
+| `get_knowledge_page(path)` | Fetch a wiki page with metadata, body, and wikilinks |
+| `ingest_note_to_knowledge(note_id)` | Snapshot a note into raw sources and update wiki pages |
+| `lint_knowledge_base()` | Run explicit wiki maintenance and apply fixes |
+
 ### Gmail setup
 
-See [docs/google-integration.md](google-integration.md) for the full setup guide, including Gmail, Google Calendar, and OAuth troubleshooting.
+See [docs/google-integration.md](google-integration.md) for the Gmail OAuth setup guide. Calendar events are local and do not require Google OAuth.

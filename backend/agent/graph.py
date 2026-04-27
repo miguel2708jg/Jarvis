@@ -6,7 +6,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from backend.agent.state import JarvisState
 from backend.agent.nodes import call_model, call_model_with_tools
-from backend.llm.bedrock import get_llm
+from backend.llm import get_llm
 
 
 def build_graph(tools: list | None = None):

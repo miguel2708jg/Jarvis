@@ -1,17 +1,18 @@
-"""FastAPI application — Jarvis backend."""
+"""FastAPI application - Jarvis backend."""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.routers import calendar, chat, email, knowledge, notes, todos
 from backend.config import settings
-from backend.api.routers import chat, notes, todos, calendar, email
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Pre-warm the graph on startup
     from backend.api.dependencies import get_jarvis_graph
+
     get_jarvis_graph()
     yield
 
@@ -19,7 +20,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Jarvis API",
     version="1.0.0",
-    description="Personal AI assistant powered by LangGraph + AWS Bedrock",
+    description="Personal AI assistant powered by LangGraph + Ollama",
     lifespan=lifespan,
 )
 
@@ -36,6 +37,7 @@ app.include_router(notes.router, prefix="/notes", tags=["notes"])
 app.include_router(todos.router, prefix="/todos", tags=["todos"])
 app.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 app.include_router(email.router, prefix="/emails", tags=["email"])
+app.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 
 
 @app.get("/health")

@@ -1,10 +1,11 @@
 """Chat endpoints: POST /chat (blocking) and WS /ws/chat (streaming)."""
 import json
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from langchain_core.messages import HumanMessage
 
 from backend.api.dependencies import get_jarvis_graph
+from backend.api.errors import llm_unavailable_message
 from backend.models.chat import ChatRequest, ChatResponse, StreamChunk
 
 router = APIRouter()
@@ -31,13 +32,16 @@ def _extract_text_content(payload) -> str:
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, graph=Depends(get_jarvis_graph)):
     """Blocking chat endpoint. Invokes the graph and returns the final AI response."""
-    state = await graph.ainvoke(
-        {
-            "messages": [HumanMessage(content=request.message)],
-            "user_id": request.user_id,
-            "session_id": request.session_id,
-        }
-    )
+    try:
+        state = await graph.ainvoke(
+            {
+                "messages": [HumanMessage(content=request.message)],
+                "user_id": request.user_id,
+                "session_id": request.session_id,
+            }
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=llm_unavailable_message(exc)) from exc
     ai_message = state["messages"][-1]
     return ChatResponse(content=ai_message.content, session_id=request.session_id)
 
@@ -110,7 +114,7 @@ async def ws_chat(websocket: WebSocket, graph=Depends(get_jarvis_graph)):
                 await websocket.send_text(StreamChunk(type="done").model_dump_json())
             except Exception as exc:
                 await websocket.send_text(
-                    StreamChunk(type="error", content=str(exc)).model_dump_json()
+                    StreamChunk(type="error", content=llm_unavailable_message(exc)).model_dump_json()
                 )
 
     except WebSocketDisconnect:

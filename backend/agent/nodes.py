@@ -5,7 +5,7 @@ from langchain_core.messages import BaseMessage, SystemMessage, convert_to_messa
 
 from backend.agent.state import JarvisState
 from backend.agent.prompts import build_system_prompt
-from backend.llm.bedrock import get_llm
+from backend.llm import get_llm
 from backend.services.thread_memory_service import (
     get_thread_messages,
     save_thread_memory,

@@ -36,6 +36,7 @@ mobile/.expo/
 mobile/dist/
 web/node_modules/
 web/.next/
+*.tsbuildinfo
 
 # macOS
 .DS_Store

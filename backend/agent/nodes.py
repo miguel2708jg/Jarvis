@@ -89,7 +89,9 @@ def call_model(state: JarvisState) -> dict:
 
     thread_id = _thread_id_from_state(state)
     llm = get_llm()
-    messages = [SystemMessage(content=build_system_prompt())] + state["messages"]
+    messages = [
+        SystemMessage(content=build_system_prompt(personality_id=state.get("personality_id")))
+    ] + state["messages"]
     response = llm.invoke(messages)
     _save_memory_if_needed(state, thread_id, response)
     return {"messages": [response], "memory_loaded": True}
@@ -101,7 +103,9 @@ def call_model_with_tools(state: JarvisState, llm_with_tools) -> dict:
     state = {**state, **memory_update}
 
     thread_id = _thread_id_from_state(state)
-    messages = [SystemMessage(content=build_system_prompt())] + state["messages"]
+    messages = [
+        SystemMessage(content=build_system_prompt(personality_id=state.get("personality_id")))
+    ] + state["messages"]
     response = llm_with_tools.invoke(messages)
     _save_memory_if_needed(state, thread_id, response)
     return {"messages": [response], "memory_loaded": True}

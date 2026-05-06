@@ -11,9 +11,11 @@ class JarvisState(MessagesState):
         user_id: User identifier for multi-user support.
         session_id: Session identifier (defaults to thread_id).
         thread_id: Thread/conversation ID for persistent memory.
+        personality_id: Active personality ID for prompt shaping.
         memory_loaded: Flag indicating if memory was loaded from DB.
     """
     user_id: str | None = None
     session_id: str | None = None
     thread_id: str | None = None
+    personality_id: str | None = None
     memory_loaded: bool = False

@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.ink,
+    backgroundColor: colors.accent,
     marginRight: 10,
     marginBottom: 6,
   },
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     color: colors.textSoft,
   },
   userLabel: {
-    color: colors.accentStrong,
+    color: colors.ink,
     textAlign: "right",
   },
   bubble: {
@@ -97,16 +97,16 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   userBubble: {
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.orange,
     borderTopRightRadius: 6,
     borderWidth: 1,
-    borderColor: "#BCECF1",
+    borderColor: "rgba(255, 255, 255, 0.62)",
   },
   aiBubble: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 6,
     borderWidth: 1,
-    borderColor: "rgba(23, 32, 51, 0.08)",
+    borderColor: colors.border,
     ...shadows.soft,
   },
   text: {

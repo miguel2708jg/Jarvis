@@ -390,23 +390,24 @@ const styles = StyleSheet.create({
   filterChip: {
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.18)",
+    borderColor: "rgba(255, 255, 255, 0.44)",
+    backgroundColor: "rgba(255, 255, 255, 0.34)",
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginRight: 8,
     marginBottom: 8,
   },
   filterChipActive: {
-    backgroundColor: colors.white,
-    borderColor: colors.white,
+    backgroundColor: colors.ink,
+    borderColor: colors.ink,
   },
   filterChipText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "rgba(255, 255, 255, 0.78)",
+    color: colors.ink,
   },
   filterChipTextActive: {
-    color: colors.ink,
+    color: colors.white,
   },
   emptyCard: {
     backgroundColor: colors.surface,

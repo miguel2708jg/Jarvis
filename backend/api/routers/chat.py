@@ -38,6 +38,7 @@ async def chat(request: ChatRequest, graph=Depends(get_jarvis_graph)):
                 "messages": [HumanMessage(content=request.message)],
                 "user_id": request.user_id,
                 "session_id": request.session_id,
+                "personality_id": request.personality_id,
             }
         )
     except Exception as exc:
@@ -62,12 +63,14 @@ async def ws_chat(websocket: WebSocket, graph=Depends(get_jarvis_graph)):
                 data = json.loads(raw)
                 message = data.get("message", "")
                 session_id = data.get("session_id", "default")
+                personality_id = data.get("personality_id")
                 model_streamed_text = False
 
                 async for event in graph.astream_events(
                     {
                         "messages": [HumanMessage(content=message)],
                         "session_id": session_id,
+                        "personality_id": personality_id,
                     },
                     version="v2",
                 ):

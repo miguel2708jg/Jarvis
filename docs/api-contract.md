@@ -13,13 +13,15 @@ GET /health
 
 ```text
 POST /chat
-Body: { "message": str, "session_id": str, "user_id": str }
+Body: { "message": str, "session_id": str, "user_id": str, "personality_id"?: str }
 -> { "content": str, "session_id": str }
 
 WS /ws/chat
-Send: { "message": str, "session_id": str }
+Send: { "message": str, "session_id": str, "personality_id"?: str }
 Recv: StreamChunk frames (see architecture.md)
 ```
+
+Valid `personality_id` values are `mentor`, `ceo`, `coach`, `amigo`, `rizz`, `focus`, `analista`, `creativo`, and `social_copilot`. Omit it for Jarvis normal.
 
 ## Notes
 
@@ -52,15 +54,6 @@ POST   /calendar           -> CalendarEvent (201)
 GET    /calendar/{id}      -> CalendarEvent
 PUT    /calendar/{id}      -> CalendarEvent
 DELETE /calendar/{id}      -> 204
-```
-
-## Email (requires Gmail credentials)
-
-```text
-GET  /emails               -> EmailSummary[]  (?label=INBOX&max=10)
-GET  /emails/{message_id}  -> EmailMessage
-GET  /emails/search        -> EmailSummary[]  (?q=query&max=10)
-POST /emails/send          Body: { to, subject, body } -> { result: str }
 ```
 
 ## Knowledge Vault

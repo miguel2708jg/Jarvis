@@ -15,7 +15,6 @@ from backend.tools.calendar import (
     update_calendar_event,
     delete_calendar_event,
 )
-from backend.tools.email import list_emails, get_email, send_email, search_emails
 from backend.tools.knowledge import (
     search_knowledge_pages,
     get_knowledge_page,
@@ -43,11 +42,6 @@ ALL_TOOLS = [
     get_calendar_event,
     update_calendar_event,
     delete_calendar_event,
-    # Email (Gmail)
-    list_emails,
-    get_email,
-    send_email,
-    search_emails,
     # Knowledge Vault
     search_knowledge_pages,
     get_knowledge_page,

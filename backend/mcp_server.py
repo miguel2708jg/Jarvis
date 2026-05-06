@@ -10,7 +10,7 @@ Dev mode (interactive inspector):
 from typing import Literal
 from mcp.server.fastmcp import FastMCP
 
-from backend.services import notes_service, todos_service, calendar_service, email_service
+from backend.services import notes_service, todos_service, calendar_service
 
 mcp = FastMCP("Jarvis")
 
@@ -118,32 +118,6 @@ def update_calendar_event(
 def delete_calendar_event(event_id: str, calendar_id: str = "primary") -> str:
     """Delete a calendar event by its ID."""
     return calendar_service.delete_calendar_event(event_id, calendar_id)
-
-
-# ── Email (4 tools) ──────────────────────────────────────────────────────────
-
-@mcp.tool()
-def list_emails(max_results: int = 10, label: str = "INBOX") -> list[dict]:
-    """List recent emails from a Gmail label. Returns sender, subject, snippet, and message ID."""
-    return email_service.list_emails(max_results, label)
-
-
-@mcp.tool()
-def get_email(message_id: str) -> dict:
-    """Get the full content of an email by its message ID."""
-    return email_service.get_email(message_id)
-
-
-@mcp.tool()
-def send_email(to: str, subject: str, body: str) -> str:
-    """Send an email to the specified recipient."""
-    return email_service.send_email(to, subject, body)
-
-
-@mcp.tool()
-def search_emails(query: str, max_results: int = 10) -> list[dict]:
-    """Search emails using Gmail search syntax (e.g., 'from:boss@company.com is:unread')."""
-    return email_service.search_emails(query, max_results)
 
 
 if __name__ == "__main__":

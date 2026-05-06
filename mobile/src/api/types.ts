@@ -1,3 +1,5 @@
+import type { PersonalityId } from "../personalities";
+
 // TypeScript interfaces mirroring Pydantic models
 
 export interface Note {
@@ -59,6 +61,8 @@ export interface ToolActivity {
   name: string;
   phase: "running" | "completed";
 }
+
+export type { PersonalityId };
 
 export type KnowledgePageType = "overview" | "entity" | "concept" | "source" | "analysis" | "unknown";
 

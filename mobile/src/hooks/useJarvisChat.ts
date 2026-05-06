@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { WS_URL } from "../api/client";
-import type { ChatMessage, StreamChunk, ToolActivity } from "../api/types";
+import type { ChatMessage, PersonalityId, StreamChunk, ToolActivity } from "../api/types";
+import { COMMAND_TO_PERSONALITY_ID, getPersonality } from "../personalities";
 
 function createId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -9,6 +10,7 @@ function createId(): string {
 
 export function useJarvisChat(initialSessionId?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activePersonality, setActivePersonality] = useState<PersonalityId | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeTools, setActiveTools] = useState<ToolActivity[]>([]);
@@ -17,6 +19,7 @@ export function useJarvisChat(initialSessionId?: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
   const sessionIdRef = useRef<string>(initialSessionId ?? createId());
+  const activePersonalityRef = useRef<PersonalityId | null>(null);
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_URL}/ws/chat`);
@@ -115,6 +118,21 @@ export function useJarvisChat(initialSessionId?: string) {
     return () => ws.close();
   }, []);
 
+  const addLocalAssistantMessage = useCallback((content: string) => {
+    const assistantMessage: ChatMessage = {
+      id: createId(),
+      role: "assistant",
+      content,
+    };
+
+    setMessages((prev) => [...prev, assistantMessage]);
+  }, []);
+
+  const setPersonality = useCallback((personalityId: PersonalityId | null) => {
+    activePersonalityRef.current = personalityId;
+    setActivePersonality(personalityId);
+  }, []);
+
   const sendMessage = useCallback((text: string) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       return;
@@ -123,10 +141,35 @@ export function useJarvisChat(initialSessionId?: string) {
     setError(null);
     setLastCompletedTool(null);
 
+    const trimmed = text.trim();
+    const [maybeCommand, ...remainingParts] = trimmed.split(/\s+/);
+    const normalizedCommand = maybeCommand.toLowerCase();
+    let outgoingText = trimmed;
+
+    if (normalizedCommand === "/normal" || normalizedCommand === "/jarvis") {
+      setPersonality(null);
+      outgoingText = remainingParts.join(" ").trim();
+
+      if (!outgoingText) {
+        addLocalAssistantMessage("Jarvis normal activated.");
+        return;
+      }
+    } else if (COMMAND_TO_PERSONALITY_ID[normalizedCommand]) {
+      const nextPersonality = COMMAND_TO_PERSONALITY_ID[normalizedCommand];
+      setPersonality(nextPersonality);
+      outgoingText = remainingParts.join(" ").trim();
+
+      if (!outgoingText) {
+        const personality = getPersonality(nextPersonality);
+        addLocalAssistantMessage(`${personality?.name ?? "Personality"} activated.`);
+        return;
+      }
+    }
+
     const userMessage: ChatMessage = {
       id: createId(),
       role: "user",
-      content: text,
+      content: trimmed,
     };
 
     const assistantId = createId();
@@ -140,12 +183,20 @@ export function useJarvisChat(initialSessionId?: string) {
     streamingIdRef.current = assistantId;
     setIsStreaming(true);
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    wsRef.current.send(JSON.stringify({ message: text, session_id: sessionIdRef.current }));
-  }, []);
+    wsRef.current.send(
+      JSON.stringify({
+        message: outgoingText,
+        session_id: sessionIdRef.current,
+        personality_id: activePersonalityRef.current,
+      })
+    );
+  }, [addLocalAssistantMessage, setPersonality]);
 
   return {
     messages,
     sendMessage,
+    activePersonality,
+    setPersonality,
     isConnected,
     isStreaming,
     activeTools,

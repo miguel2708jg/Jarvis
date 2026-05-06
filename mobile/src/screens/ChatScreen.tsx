@@ -3,6 +3,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,13 +17,14 @@ import type { ToolActivity } from "../api/types";
 import MessageBubble from "../components/MessageBubble";
 import ScreenBackground from "../components/ScreenBackground";
 import { useJarvisChat } from "../hooks/useJarvisChat";
+import { getPersonality, PERSONALITIES } from "../personalities";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
 
 const QUICK_ACTIONS = [
   {
     label: "Plan my day",
     icon: "sparkles-outline" as const,
-    prompt: "Plan my day using my notes, ToDos, calendar, and email.",
+    prompt: "Plan my day using my notes, ToDos, calendar, and knowledge.",
   },
   {
     label: "Create ToDo",
@@ -35,9 +37,9 @@ const QUICK_ACTIONS = [
     prompt: "Summarize my notes into a short action-oriented brief.",
   },
   {
-    label: "Check email",
-    icon: "mail-outline" as const,
-    prompt: "Review my latest emails and highlight anything that needs a reply.",
+    label: "Knowledge brief",
+    icon: "library-outline" as const,
+    prompt: "Search my knowledge vault and give me a concise brief on what matters now.",
   },
 ];
 
@@ -64,9 +66,6 @@ function getToolIcon(tool: string): React.ComponentProps<typeof Ionicons>["name"
   }
   if (normalized.includes("calendar")) {
     return "calendar-outline";
-  }
-  if (normalized.includes("email") || normalized.includes("mail")) {
-    return "mail-outline";
   }
   return "sparkles-outline";
 }
@@ -128,8 +127,11 @@ export default function ChatScreen() {
     activeTools,
     lastCompletedTool,
     error,
+    activePersonality,
+    setPersonality,
   } = useJarvisChat();
   const listRef = useRef<FlatList>(null);
+  const selectedPersonality = getPersonality(activePersonality);
 
   const handleSend = () => {
     const text = input.trim();
@@ -161,7 +163,7 @@ export default function ChatScreen() {
             <Text style={styles.heroTitle}>Jarvis keeps your workday aligned.</Text>
             <Text style={styles.heroSubtitle}>
               Ask for plans, summarize context, or let the assistant touch notes, ToDos,
-              calendar, and email without leaving chat.
+              calendar, and knowledge without leaving chat.
             </Text>
           </View>
 
@@ -173,7 +175,7 @@ export default function ChatScreen() {
 
         <View style={styles.heroMetricRow}>
           <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>5</Text>
+            <Text style={styles.metricValue}>4</Text>
             <Text style={styles.metricLabel}>Core modules</Text>
           </View>
           <View style={styles.metricCard}>
@@ -197,6 +199,61 @@ export default function ChatScreen() {
           </Text>
         </View>
       ) : null}
+
+      <View style={styles.personalityBlock}>
+        <View style={styles.personalityHeader}>
+          <View>
+            <Text style={styles.sectionEyebrow}>Personality</Text>
+            <Text style={styles.personalityTitle}>
+              {selectedPersonality ? selectedPersonality.name : "Jarvis normal"}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.normalChip, !activePersonality && styles.normalChipActive]}
+            onPress={() => setPersonality(null)}
+            disabled={isStreaming}
+          >
+            <Text style={[styles.normalChipText, !activePersonality && styles.normalChipTextActive]}>
+              Normal
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.personalityRail}
+        >
+          {PERSONALITIES.map((personality) => {
+            const selected = activePersonality === personality.id;
+            return (
+              <TouchableOpacity
+                key={personality.id}
+                style={[styles.personalityChip, selected && styles.personalityChipActive]}
+                onPress={() => setPersonality(personality.id)}
+                disabled={isStreaming}
+              >
+                <View style={[styles.personalityIcon, selected && styles.personalityIconActive]}>
+                  <Ionicons
+                    name={personality.icon}
+                    size={16}
+                    color={selected ? colors.ink : colors.accentStrong}
+                  />
+                </View>
+                <View style={styles.personalityCopy}>
+                  <Text style={[styles.personalityName, selected && styles.personalityNameActive]}>
+                    {personality.name}
+                  </Text>
+                  <Text style={[styles.personalityRole, selected && styles.personalityRoleActive]}>
+                    {personality.shortRole}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       <View style={styles.quickActionsBlock}>
         <Text style={styles.sectionEyebrow}>Quick Actions</Text>
@@ -303,7 +360,7 @@ const styles = StyleSheet.create({
   heroCard: {
     position: "relative",
     overflow: "hidden",
-    backgroundColor: colors.ink,
+    backgroundColor: colors.lavender,
     borderRadius: radii.xl,
     padding: spacing.xl,
     marginBottom: spacing.lg,
@@ -313,13 +370,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 200,
     height: 200,
-    borderRadius: 999,
+    borderRadius: 48,
     top: -90,
     right: -20,
-    backgroundColor: "rgba(27, 183, 199, 0.24)",
+    backgroundColor: "rgba(255, 255, 255, 0.32)",
+    transform: [{ rotate: "18deg" }],
   },
   heroEyebrow: {
-    color: "#99ECF5",
+    color: colors.ink,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.7,
@@ -336,14 +394,14 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   heroTitle: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: 30,
     lineHeight: 34,
     fontWeight: "800",
     marginBottom: spacing.sm,
   },
   heroSubtitle: {
-    color: "rgba(255, 255, 255, 0.75)",
+    color: "rgba(9, 10, 20, 0.66)",
     fontSize: 14,
     lineHeight: 22,
   },
@@ -355,10 +413,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
   onlinePill: {
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
+    backgroundColor: "rgba(255, 255, 255, 0.52)",
   },
   offlinePill: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: "rgba(255, 255, 255, 0.38)",
   },
   connectionDot: {
     width: 8,
@@ -373,7 +431,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
   },
   connectionText: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -383,19 +441,19 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.56)",
     borderRadius: radii.md,
     padding: 14,
     marginRight: spacing.sm,
   },
   metricValue: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: 20,
     fontWeight: "800",
     marginBottom: 4,
   },
   metricLabel: {
-    color: "rgba(255, 255, 255, 0.68)",
+    color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
     fontWeight: "600",
@@ -436,6 +494,95 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
   },
+  personalityBlock: {
+    marginBottom: spacing.lg,
+  },
+  personalityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  personalityTitle: {
+    color: colors.text,
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "800",
+  },
+  normalChip: {
+    minHeight: 38,
+    justifyContent: "center",
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  normalChipActive: {
+    backgroundColor: colors.lavender,
+    borderColor: colors.lavender,
+  },
+  normalChipText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  normalChipTextActive: {
+    color: colors.ink,
+  },
+  personalityRail: {
+    paddingRight: spacing.md,
+  },
+  personalityChip: {
+    width: 152,
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginRight: 10,
+    ...shadows.soft,
+  },
+  personalityChipActive: {
+    backgroundColor: colors.lavender,
+    borderColor: colors.lavender,
+  },
+  personalityIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.accentSoft,
+    marginRight: 10,
+  },
+  personalityIconActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.54)",
+  },
+  personalityCopy: {
+    flex: 1,
+  },
+  personalityName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  personalityNameActive: {
+    color: colors.ink,
+  },
+  personalityRole: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+  },
+  personalityRoleActive: {
+    color: colors.textMuted,
+  },
   quickActionsBlock: {
     marginBottom: spacing.lg,
   },
@@ -448,12 +595,18 @@ const styles = StyleSheet.create({
     width: "50%",
     paddingHorizontal: 6,
     marginBottom: 12,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    ...shadows.soft,
   },
   quickActionIcon: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.skySoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
@@ -532,7 +685,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: 106,
-    backgroundColor: "rgba(246, 241, 231, 0.96)",
+    backgroundColor: "rgba(247, 244, 255, 0.96)",
   },
   composerShell: {
     flexDirection: "row",
@@ -559,7 +712,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: colors.ink,
+    backgroundColor: colors.tabBar,
     alignItems: "center",
     justifyContent: "center",
   },

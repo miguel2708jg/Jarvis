@@ -1,6 +1,7 @@
 from datetime import datetime, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from backend.agent.personalities import build_personality_prompt
 from backend.config import settings
 
 
@@ -11,7 +12,6 @@ You can help the user with:
 - Taking and managing notes
 - Managing to-do lists and tasks
 - Scheduling and reviewing calendar events
-- Reading, searching, and sending emails
 - Reading and navigating the knowledge vault pages
 
 Always confirm when you create, update, or delete something. When listing items, \
@@ -41,7 +41,10 @@ def _resolve_prompt_timezone() -> tuple[tzinfo, str]:
     return timezone.utc, "UTC"
 
 
-def build_system_prompt(now: datetime | None = None) -> str:
+def build_system_prompt(
+    now: datetime | None = None,
+    personality_id: str | None = None,
+) -> str:
     """Build the system prompt with fresh date and time context for each invocation."""
     prompt_timezone, timezone_name = _resolve_prompt_timezone()
     reference_time = now or datetime.now(prompt_timezone)
@@ -53,6 +56,7 @@ def build_system_prompt(now: datetime | None = None) -> str:
 
     return (
         f"{SYSTEM_PROMPT}\n\n"
+        f"{build_personality_prompt(personality_id)}\n\n"
         "Current date and time context for this conversation:\n"
         f"- Current date: {reference_time:%Y-%m-%d}\n"
         f"- Current time: {reference_time:%H:%M:%S}\n"

@@ -6,7 +6,6 @@ import { Ionicons } from "@expo/vector-icons";
 
 import CalendarScreen from "../screens/CalendarScreen";
 import ChatScreen from "../screens/ChatScreen";
-import EmailScreen from "../screens/EmailScreen";
 import KnowledgeScreen from "../screens/KnowledgeScreen";
 import NotesScreen from "../screens/NotesScreen";
 import TodosScreen from "../screens/TodosScreen";
@@ -27,7 +26,6 @@ const TABS: {
   { name: "Knowledge", component: KnowledgeScreen, icon: "library-outline", activeIcon: "library" },
   { name: "ToDo", component: TodosScreen, icon: "checkmark-circle-outline", activeIcon: "checkmark-circle" },
   { name: "Calendar", component: CalendarScreen, icon: "calendar-outline", activeIcon: "calendar" },
-  { name: "Email", component: EmailScreen, icon: "mail-outline", activeIcon: "mail" },
 ];
 
 export default function AppNavigator() {
@@ -38,8 +36,9 @@ export default function AppNavigator() {
           headerShown: false,
           sceneContainerStyle: { backgroundColor: colors.background },
           tabBarHideOnKeyboard: true,
-          tabBarActiveTintColor: colors.accent,
-          tabBarInactiveTintColor: "#8B98AE",
+          tabBarActiveTintColor: colors.ink,
+          tabBarInactiveTintColor: "rgba(255, 255, 255, 0.62)",
+          tabBarActiveBackgroundColor: colors.white,
           tabBarLabelStyle: styles.tabBarLabel,
           tabBarStyle: styles.tabBar,
           tabBarItemStyle: styles.tabBarItem,
@@ -61,24 +60,27 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 16,
-    height: 74,
+    left: 24,
+    right: 24,
+    bottom: 18,
+    height: 68,
     borderTopWidth: 0,
     backgroundColor: "transparent",
     elevation: 0,
   },
   tabBarBackground: {
     flex: 1,
-    borderRadius: radii.lg,
+    borderRadius: radii.pill,
     backgroundColor: colors.tabBar,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
     ...shadows.card,
   },
   tabBarItem: {
-    paddingTop: 8,
+    paddingTop: 7,
+    borderRadius: radii.pill,
+    marginVertical: 8,
+    marginHorizontal: 4,
   },
   tabBarLabel: {
     fontSize: 11,

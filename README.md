@@ -65,9 +65,6 @@ pytest tests/phase2/test_tools.py -v
 # Phase 2 - agent routing (requires Ollama)
 pytest tests/phase2/test_agent_routing.py -m integration -v
 
-# Phase 2 - email tools (requires Gmail credentials)
-pytest tests/phase2/test_email_tools.py -m requires_credentials -v
-
 # Phase 3 - API tests (no Ollama)
 pytest tests/phase3/test_api_endpoints.py -v
 
@@ -103,7 +100,7 @@ mobile/           React Native (Expo) app
     api/          axios client + TypeScript types
     hooks/        useJarvisChat (WS), useJarvisApi (REST)
     components/   MessageBubble, StreamingText, TypingIndicator
-    screens/      Chat, Notes, Knowledge, Todos, Calendar, Email
+    screens/      Chat, Notes, Knowledge, Todos, Calendar
     navigation/   Bottom tab navigator
 
 tests/
@@ -123,6 +120,6 @@ docs/
 | Phase | Focus | Key concepts |
 |---|---|---|
 | 1 | Real LLM + conversational graph | `MessagesState`, `BaseChatModel`, Ollama config |
-| 2 | Tool calling + storage | `@tool`, `ToolNode`, `tools_condition`, Gmail OAuth |
+| 2 | Tool calling + storage | `@tool`, `ToolNode`, `tools_condition`, local tools |
 | 3 | FastAPI + WebSocket streaming | `astream_events`, async FastAPI, WebSocket protocol |
 | 4 | React Native mobile app | WS hook, streaming state, bottom tab navigation |

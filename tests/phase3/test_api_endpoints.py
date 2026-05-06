@@ -46,6 +46,24 @@ async def test_health(app):
 
 
 @pytest.mark.asyncio
+async def test_email_routes_are_not_mounted(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.get("/emails")
+    assert r.status_code == 404
+
+
+def test_email_tools_are_not_registered():
+    from backend.tools.registry import ALL_TOOLS
+
+    tool_names = {tool.name for tool in ALL_TOOLS}
+
+    assert "list_emails" not in tool_names
+    assert "get_email" not in tool_names
+    assert "send_email" not in tool_names
+    assert "search_emails" not in tool_names
+
+
+@pytest.mark.asyncio
 async def test_create_and_list_notes(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         r = await client.post("/notes", json={"title": "Hello", "content": "World"})

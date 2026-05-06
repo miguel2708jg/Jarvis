@@ -35,17 +35,6 @@ Calendar tools manage local SQLite events through the same backend database used
 | `get_calendar_event(event_id)` | Fetch an event by ID |
 | `delete_calendar_event(event_id)` | Delete an event |
 
-## Email tools (Gmail)
-
-Requires `GMAIL_CREDENTIALS_FILE` and `GMAIL_TOKEN_FILE` in `.env`.
-
-| Tool | Description |
-|---|---|
-| `list_emails(max_results?, label?)` | List recent emails from a label |
-| `get_email(message_id)` | Get full email content |
-| `send_email(to, subject, body)` | Send an email |
-| `search_emails(query, max_results?)` | Search with Gmail query syntax |
-
 ## Knowledge tools
 
 | Tool | Description |
@@ -55,6 +44,4 @@ Requires `GMAIL_CREDENTIALS_FILE` and `GMAIL_TOKEN_FILE` in `.env`.
 | `ingest_note_to_knowledge(note_id)` | Snapshot a note into raw sources and update wiki pages |
 | `lint_knowledge_base()` | Run explicit wiki maintenance and apply fixes |
 
-### Gmail setup
-
-See [docs/google-integration.md](google-integration.md) for the Gmail OAuth setup guide. Calendar events are local and do not require Google OAuth.
+Email/Gmail tools are disabled in the active assistant registry for now. Calendar events are local and do not require Google OAuth.

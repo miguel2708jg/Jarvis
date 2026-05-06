@@ -11,7 +11,7 @@ Mobile (Expo)
 FastAPI -------- LangGraph Agent -------- Ollama
                       |
                     Tool calls
-            / Notes / ToDo / Calendar / Email / Knowledge
+            / Notes / ToDo / Calendar / Knowledge
                       |
             SQLite data + Obsidian-style knowledge vault
 ```

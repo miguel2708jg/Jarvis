@@ -31,8 +31,7 @@ export default function ModuleHero({
 }: Props) {
   return (
     <View style={styles.shell}>
-      <View style={styles.glowPrimary} />
-      <View style={styles.glowSecondary} />
+      <View style={styles.accentBlock} />
 
       <View style={styles.topRow}>
         <View style={styles.copyBlock}>
@@ -70,29 +69,21 @@ const styles = StyleSheet.create({
   shell: {
     position: "relative",
     overflow: "hidden",
-    backgroundColor: colors.ink,
+    backgroundColor: colors.lavender,
     borderRadius: radii.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
     ...shadows.card,
   },
-  glowPrimary: {
+  accentBlock: {
     position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 999,
-    top: -90,
-    right: -40,
-    backgroundColor: "rgba(27, 183, 199, 0.22)",
-  },
-  glowSecondary: {
-    position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 999,
-    bottom: -80,
-    left: -30,
-    backgroundColor: "rgba(212, 145, 52, 0.18)",
+    width: 116,
+    height: 116,
+    borderRadius: 36,
+    top: -28,
+    right: -18,
+    backgroundColor: "rgba(255, 255, 255, 0.34)",
+    transform: [{ rotate: "12deg" }],
   },
   topRow: {
     flexDirection: "row",
@@ -104,7 +95,7 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   eyebrow: {
-    color: "#99ECF5",
+    color: colors.ink,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.6,
@@ -112,26 +103,26 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   title: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: 27,
     lineHeight: 31,
     fontWeight: "800",
     marginBottom: spacing.sm,
   },
   subtitle: {
-    color: "rgba(255, 255, 255, 0.74)",
+    color: "rgba(9, 10, 20, 0.68)",
     fontSize: 14,
     lineHeight: 21,
   },
   actionButton: {
     alignSelf: "flex-start",
     borderRadius: radii.pill,
-    backgroundColor: colors.white,
+    backgroundColor: colors.ink,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   actionText: {
-    color: colors.ink,
+    color: colors.white,
     fontSize: 13,
     fontWeight: "700",
   },
@@ -143,22 +134,22 @@ const styles = StyleSheet.create({
   statCard: {
     minWidth: 92,
     flexGrow: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.58)",
     borderRadius: radii.md,
     padding: 14,
     marginRight: spacing.sm,
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: "rgba(255, 255, 255, 0.46)",
   },
   statValue: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: 22,
     fontWeight: "800",
     marginBottom: 4,
   },
   statLabel: {
-    color: "rgba(255, 255, 255, 0.68)",
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: "600",
   },

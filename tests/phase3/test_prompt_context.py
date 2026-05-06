@@ -39,9 +39,13 @@ def test_model_nodes_inject_dynamic_system_prompt(monkeypatch, with_tools):
         lambda state: {"messages": state["messages"], "memory_loaded": True},
     )
     monkeypatch.setattr(nodes, "_save_memory_if_needed", lambda state, thread_id, response: None)
-    monkeypatch.setattr(nodes, "build_system_prompt", lambda: "Current date: 2026-04-08")
+    monkeypatch.setattr(
+        nodes,
+        "build_system_prompt",
+        lambda **kwargs: "Current date: 2026-04-08",
+    )
 
-    state = {"messages": [HumanMessage(content="Hola")]}
+    state = {"messages": [HumanMessage(content="Hola")], "personality_id": "focus"}
     if with_tools:
         nodes.call_model_with_tools(state, FakeLLM())
     else:
@@ -51,3 +55,42 @@ def test_model_nodes_inject_dynamic_system_prompt(monkeypatch, with_tools):
     assert isinstance(captured["messages"][0], SystemMessage)
     assert captured["messages"][0].content == "Current date: 2026-04-08"
     assert captured["messages"][1].content == "Hola"
+
+
+def test_build_system_prompt_defaults_to_normal_personality():
+    from backend.agent.prompts import build_system_prompt
+
+    prompt = build_system_prompt()
+
+    assert "Active personality: Jarvis normal" in prompt
+    assert "emails" not in prompt.lower()
+
+
+def test_build_system_prompt_includes_active_personality():
+    from backend.agent.prompts import build_system_prompt
+
+    prompt = build_system_prompt(personality_id="mentor")
+
+    assert "Active personality: Mentor (mentor)" in prompt
+    assert "Role: Strategic guide for important decisions and personal growth." in prompt
+    assert "Tone:" in prompt
+    assert "Rules:" in prompt
+
+
+def test_build_system_prompt_includes_coach_clarity_frame():
+    from backend.agent.prompts import build_system_prompt
+
+    prompt = build_system_prompt(personality_id="coach")
+
+    assert "Objetivo" in prompt
+    assert "Relevancia" in prompt
+    assert "Expectativas" in prompt
+    assert "Indicadores" in prompt
+
+
+def test_build_system_prompt_ignores_unknown_personality():
+    from backend.agent.prompts import build_system_prompt
+
+    prompt = build_system_prompt(personality_id="unknown")
+
+    assert "Active personality: Jarvis normal" in prompt

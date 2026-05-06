@@ -18,6 +18,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings,
   Sparkles,
   Trash2,
   X,
@@ -26,7 +27,7 @@ import { PERSONALITIES, getPersonality } from "@/lib/personalities";
 import { useCalendar, useEmails, useJarvisChat, useKnowledge, useNotes, useTodos } from "@/lib/hooks";
 import type { ChatMessage, KnowledgePage, KnowledgePageDetail, Note, Todo } from "@/lib/types";
 
-type TabId = "chat" | "notes" | "knowledge" | "todos" | "calendar" | "email";
+type TabId = "chat" | "notes" | "knowledge" | "todos" | "calendar" | "email" | "settings";
 
 const tabs = [
   { id: "chat", label: "Chat", Icon: Sparkles },
@@ -35,6 +36,7 @@ const tabs = [
   { id: "todos", label: "ToDo", Icon: CheckCircle2 },
   { id: "calendar", label: "Calendar", Icon: CalendarDays },
   { id: "email", label: "Email", Icon: Mail },
+  { id: "settings", label: "Settings", Icon: Settings },
 ] satisfies { id: TabId; label: string; Icon: typeof Sparkles }[];
 
 const quickActions = [
@@ -59,6 +61,25 @@ function formatDate(value?: string | null, options?: Intl.DateTimeFormatOptions)
 
 function parseTags(value: string): string[] {
   return value.split(",").map((tag) => tag.trim()).filter(Boolean);
+}
+
+function OrbitLogo({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={compact ? "orbit-logo compact" : "orbit-logo"} aria-hidden="true">
+      <span className="orbit-ring" />
+      <span className="orbit-path" />
+      <span className="orbit-planet" />
+    </div>
+  );
+}
+
+function BrandMark({ agentName }: { agentName: string }) {
+  return (
+    <div className="brand-mark">
+      <OrbitLogo compact />
+      <span>{agentName}</span>
+    </div>
+  );
 }
 
 function Hero({
@@ -133,15 +154,15 @@ function Modal({
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, agentName }: { message: ChatMessage; agentName: string }) {
   const isUser = message.role === "user";
   return (
     <div className={`message-row ${isUser ? "right" : "left"}`}>
-      {!isUser ? <div className="avatar">J</div> : null}
+      {!isUser ? <div className="avatar">{agentName.slice(0, 1).toUpperCase()}</div> : null}
       <div className="message-stack">
-        <span className="message-label">{isUser ? "You" : "Jarvis"}</span>
+        <span className="message-label">{isUser ? "You" : agentName}</span>
         <div className={`bubble ${isUser ? "user" : "assistant"}`}>
-          {message.isStreaming && !message.content ? <span className="typing">•••</span> : message.content}
+          {message.isStreaming && !message.content ? <span className="typing">...</span> : message.content}
           {message.isStreaming && message.content ? <span className="cursor">|</span> : null}
         </div>
       </div>
@@ -149,7 +170,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function ChatScreen() {
+function ChatScreen({ agentName }: { agentName: string }) {
   const [input, setInput] = useState("");
   const chat = useJarvisChat();
   const selectedPersonality = getPersonality(chat.activePersonality);
@@ -168,7 +189,7 @@ function ChatScreen() {
     <div className="screen chat-screen">
       <Hero
         eyebrow="Personal AI Operator"
-        title="Jarvis keeps your workday aligned."
+        title={`${agentName} keeps your workday aligned.`}
         subtitle="Ask for plans, summarize context, or let the assistant touch notes, ToDos, calendar, and knowledge without leaving chat."
         stats={[
           { label: "Core modules", value: "5" },
@@ -186,7 +207,7 @@ function ChatScreen() {
         <div className="section-head">
           <div>
             <p className="eyebrow">Personality</p>
-            <h2>{selectedPersonality?.name ?? "Jarvis normal"}</h2>
+            <h2>{selectedPersonality?.name ?? `${agentName} normal`}</h2>
           </div>
           <button className={!chat.activePersonality ? "chip active" : "chip"} onClick={() => chat.setPersonality(null)} disabled={chat.isStreaming}>
             Normal
@@ -232,15 +253,15 @@ function ChatScreen() {
       <section className="messages">
         {chat.messages.length === 0 ? (
           <div className="empty">
-            <h2>Use Jarvis like an operator, not a chatbot.</h2>
-            <p>Give it goals, context, and constraints. Tool activity appears while Jarvis works.</p>
+            <h2>Use {agentName} like an operator, not a chatbot.</h2>
+            <p>Give it goals, context, and constraints. Tool activity appears while {agentName} works.</p>
           </div>
-        ) : chat.messages.map((message) => <MessageBubble key={message.id} message={message} />)}
+        ) : chat.messages.map((message) => <MessageBubble key={message.id} message={message} agentName={agentName} />)}
         <div ref={endRef} />
       </section>
 
       <form className="composer" onSubmit={(event) => { event.preventDefault(); send(input); }}>
-        <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder={chat.isConnected ? "Ask Jarvis to organize the next move" : "Waiting for connection"} />
+        <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder={chat.isConnected ? `Ask ${agentName} to organize the next move` : "Waiting for connection"} />
         <button className="send-button" disabled={!chat.isConnected || chat.isStreaming || !input.trim()} aria-label="Send message">
           <ArrowUp size={18} />
         </button>
@@ -249,7 +270,7 @@ function ChatScreen() {
   );
 }
 
-function NotesScreen() {
+function NotesScreen({ agentName }: { agentName: string }) {
   const notes = useNotes();
   const knowledge = useKnowledge();
   const [modalOpen, setModalOpen] = useState(false);
@@ -277,7 +298,7 @@ function NotesScreen() {
       <Hero
         eyebrow="Notebook"
         title="Notes that look organized before you open them."
-        subtitle="Keep personal context in one place, edit fast inside the app, or let Jarvis create notes from chat."
+        subtitle={`Keep personal context in one place, edit fast inside the app, or let ${agentName} create notes from chat.`}
         action={{ label: "New note", onClick: () => openEditor() }}
         stats={[
           { label: "Total notes", value: String(notes.items.length) },
@@ -302,7 +323,7 @@ function NotesScreen() {
               window.alert(result ? `${result.touched_pages.length} page(s) updated.` : "The note could not be added.");
             }}><BookOpen size={16} />Add to Knowledge</button>
           </article>
-        )) : <Empty title="No notes yet." text="Start one here or ask Jarvis in chat to create a structured note." />}
+        )) : <Empty title="No notes yet." text={`Start one here or ask ${agentName} in chat to create a structured note.`} />}
       </div>
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} eyebrow={editing ? "Edit note" : "Create note"} title={editing ? "Refine the note and keep context clean." : "Capture the thought while it is still sharp."}>
         <form className="form" onSubmit={save}>
@@ -316,7 +337,7 @@ function NotesScreen() {
   );
 }
 
-function TodosScreen() {
+function TodosScreen({ agentName }: { agentName: string }) {
   const todos = useTodos();
   const [filter, setFilter] = useState<"pending" | "all" | "completed">("pending");
   const [modalOpen, setModalOpen] = useState(false);
@@ -374,7 +395,7 @@ function TodosScreen() {
               <button className="icon-button" onClick={() => confirm(`Delete "${todo.text}"?`) && todos.remove(todo.id)} aria-label="Delete ToDo"><Trash2 size={16} /></button>
             </article>
           );
-        }) : <Empty title="No ToDos in this filter." text="Add one manually or ask Jarvis to turn your next plan into concrete ToDos." />}
+        }) : <Empty title="No ToDos in this filter." text={`Add one manually or ask ${agentName} to turn your next plan into concrete ToDos.`} />}
       </div>
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} eyebrow={editing ? "Edit ToDo" : "Create ToDo"} title={editing ? "Adjust the ToDo without losing momentum." : "Turn intent into a ToDo with structure."}>
         <form className="form" onSubmit={save}>
@@ -464,7 +485,7 @@ function KnowledgeScreen() {
   );
 }
 
-function CalendarScreen() {
+function CalendarScreen({ agentName }: { agentName: string }) {
   const calendar = useCalendar();
   useEffect(() => { calendar.refresh(); }, [calendar.refresh]);
   const nextEvent = calendar.items[0];
@@ -483,19 +504,19 @@ function CalendarScreen() {
             </div>
             <button className="icon-button" onClick={() => confirm(`Delete "${event.title}"?`) && calendar.remove(event.id)} aria-label="Delete event"><Trash2 size={16} /></button>
           </article>
-        )) : <Empty title="No events yet." text="Ask Jarvis to schedule a meeting, add a deadline, or build an agenda." />}
+        )) : <Empty title="No events yet." text={`Ask ${agentName} to schedule a meeting, add a deadline, or build an agenda.`} />}
       </div>
     </div>
   );
 }
 
-function EmailScreen() {
+function EmailScreen({ agentName }: { agentName: string }) {
   const emails = useEmails();
   useEffect(() => { emails.refresh(); }, [emails.refresh]);
   const unread = emails.items.filter((email) => !email.is_read).length;
   return (
     <div className="screen">
-      <Hero eyebrow="Inbox" title="Email should feel triaged before you even open a thread." subtitle="Use Jarvis to summarize the inbox, then scan sender, subject, urgency, and unread state." stats={[{ label: "Messages", value: String(emails.items.length) }, { label: "Unread", value: String(unread) }]} error={emails.error} />
+      <Hero eyebrow="Inbox" title="Email should feel triaged before you even open a thread." subtitle={`Use ${agentName} to summarize the inbox, then scan sender, subject, urgency, and unread state.`} stats={[{ label: "Messages", value: String(emails.items.length) }, { label: "Unread", value: String(unread) }]} error={emails.error} />
       <div className="list">
         {emails.items.length ? emails.items.map((email) => (
           <article className={`card email ${!email.is_read ? "unread" : ""}`} key={email.message_id}>
@@ -504,8 +525,59 @@ function EmailScreen() {
             <p>{email.snippet || email.body}</p>
             <span className={!email.is_read ? "chip active" : "chip"}>{email.is_read ? "Read" : "Unread"}</span>
           </article>
-        )) : <Empty title="No emails available." text="Configure Gmail credentials to enable inbox access, then ask Jarvis to summarize what matters." />}
+        )) : <Empty title="No emails available." text={`Configure Gmail credentials to enable inbox access, then ask ${agentName} to summarize what matters.`} />}
       </div>
+    </div>
+  );
+}
+
+function SettingsScreen({ agentName, onAgentNameChange }: { agentName: string; onAgentNameChange: (value: string) => void }) {
+  const updateAgentName = (value: string) => {
+    const next = value.trimStart();
+    onAgentNameChange(next);
+    window.localStorage.setItem("orbit.agentName", next.trim() || "Orbit");
+  };
+
+  return (
+    <div className="screen">
+      <Hero
+        eyebrow="Settings"
+        title="Customize your agent identity."
+        subtitle="Set the assistant name used across chat, notes, ToDos, calendar, and inbox."
+        stats={[
+          { label: "Agent name", value: agentName || "Orbit" },
+          { label: "Brand", value: "Orbit" },
+          { label: "Logo", value: "Active" },
+        ]}
+      >
+        <div className="brand-preview">
+          <OrbitLogo />
+          <div>
+            <p className="eyebrow">Current identity</p>
+            <h2>{agentName || "Orbit"}</h2>
+          </div>
+        </div>
+      </Hero>
+
+      <section className="panel settings-panel">
+        <div className="section-head">
+          <div>
+            <p className="eyebrow">Agent</p>
+            <h2>Name</h2>
+          </div>
+          <BrandMark agentName={agentName || "Orbit"} />
+        </div>
+        <label className="field">
+          Agent name
+          <input
+            value={agentName}
+            onChange={(event) => updateAgentName(event.target.value)}
+            onBlur={() => onAgentNameChange(agentName.trim() || "Orbit")}
+            placeholder="Orbit"
+          />
+        </label>
+        <p className="settings-note">This changes the display name in the interface. The default value is Orbit.</p>
+      </section>
     </div>
   );
 }
@@ -516,18 +588,27 @@ function Empty({ title, text }: { title: string; text: string }) {
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>("chat");
+  const [agentName, setAgentName] = useState("Orbit");
+
+  useEffect(() => {
+    const savedAgentName = window.localStorage.getItem("orbit.agentName");
+    setAgentName(savedAgentName?.trim() || "Orbit");
+  }, []);
+
   return (
     <main>
       <div className="background-wash" />
       <div className="app-shell">
-        {activeTab === "chat" && <ChatScreen />}
-        {activeTab === "notes" && <NotesScreen />}
+        <BrandMark agentName={agentName} />
+        {activeTab === "chat" && <ChatScreen agentName={agentName} />}
+        {activeTab === "notes" && <NotesScreen agentName={agentName} />}
         {activeTab === "knowledge" && <KnowledgeScreen />}
-        {activeTab === "todos" && <TodosScreen />}
-        {activeTab === "calendar" && <CalendarScreen />}
-        {activeTab === "email" && <EmailScreen />}
+        {activeTab === "todos" && <TodosScreen agentName={agentName} />}
+        {activeTab === "calendar" && <CalendarScreen agentName={agentName} />}
+        {activeTab === "email" && <EmailScreen agentName={agentName} />}
+        {activeTab === "settings" && <SettingsScreen agentName={agentName} onAgentNameChange={setAgentName} />}
       </div>
-      <nav className="tabbar" aria-label="Jarvis modules">
+      <nav className="tabbar" aria-label={`${agentName} modules`}>
         {tabs.map(({ id, label, Icon }) => (
           <button key={id} className={activeTab === id ? "active" : ""} onClick={() => setActiveTab(id)}>
             <Icon size={20} />

@@ -111,6 +111,15 @@ class SQLiteStore:
             )
             return cursor.rowcount > 0
 
+    def delete_where(self, where_clause: str, params: tuple = ()) -> int:
+        """Delete records matching a custom WHERE clause."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                f"DELETE FROM {self.table_name} WHERE {where_clause}", params
+            )
+            conn.commit()
+            return cursor.rowcount
+
     def query(self, where_clause: str, params: tuple = ()) -> list[dict[str, Any]]:
         """
         Query records with a custom WHERE clause.

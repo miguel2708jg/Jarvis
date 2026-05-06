@@ -7,21 +7,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from backend.models.calendar_event import CalendarEvent
-from backend.storage.sqlite_store import SQLiteStore
+from backend.storage.factory import create_store
+from backend.storage.schemas import CALENDAR_SCHEMA
 
-CALENDAR_SCHEMA = """
-CREATE TABLE IF NOT EXISTS calendar_events (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    start_datetime TEXT NOT NULL,
-    end_datetime TEXT NOT NULL,
-    description TEXT,
-    location TEXT,
-    created_at TEXT NOT NULL
-)
-"""
-
-_store = SQLiteStore("calendar_events", CALENDAR_SCHEMA)
+_store = create_store("calendar_events", CALENDAR_SCHEMA)
 
 
 def _parse_event_datetime(value: str) -> datetime:

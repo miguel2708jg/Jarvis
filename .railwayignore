@@ -1,0 +1,14 @@
+.env
+*.env.local
+.git
+.obsidian
+.pytest_cache
+Data
+logs
+venv
+__pycache__
+*.pyc
+web
+mobile
+tests
+docs

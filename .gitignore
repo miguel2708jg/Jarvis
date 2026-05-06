@@ -18,7 +18,9 @@ build/
 data/
 *.json
 !package.json
+!package-lock.json
 !tsconfig.json
+!railway.json
 credentials.json
 token.json
 
@@ -32,6 +34,8 @@ logs/
 mobile/node_modules/
 mobile/.expo/
 mobile/dist/
+web/node_modules/
+web/.next/
 
 # macOS
 .DS_Store

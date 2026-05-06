@@ -6,21 +6,12 @@ from typing import Literal
 
 from backend.config import settings
 from backend.models.todo import Todo
+from backend.storage.factory import create_store
 from backend.storage.json_store import JsonStore
 from backend.storage.sqlite_store import SQLiteStore
+from backend.storage.schemas import TODOS_SCHEMA
 
-TODOS_SCHEMA = """
-CREATE TABLE IF NOT EXISTS todos (
-    id TEXT PRIMARY KEY,
-    text TEXT NOT NULL,
-    completed INTEGER NOT NULL DEFAULT 0,
-    priority TEXT NOT NULL DEFAULT 'medium',
-    due_date TEXT,
-    created_at TEXT NOT NULL
-)
-"""
-
-_store = SQLiteStore("todos", TODOS_SCHEMA)
+_store = create_store("todos", TODOS_SCHEMA)
 _UNSET = object()
 _legacy_import_checked = False
 

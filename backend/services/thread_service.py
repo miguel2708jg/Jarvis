@@ -2,19 +2,10 @@
 from datetime import datetime, timezone
 
 from backend.models.thread import Thread
-from backend.storage.sqlite_store import SQLiteStore
+from backend.storage.factory import create_store
+from backend.storage.schemas import THREADS_SCHEMA
 
-THREADS_SCHEMA = """
-CREATE TABLE IF NOT EXISTS threads (
-    id TEXT PRIMARY KEY,
-    title TEXT,
-    user_id TEXT NOT NULL DEFAULT 'default',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)
-"""
-
-_store = SQLiteStore("threads", THREADS_SCHEMA)
+_store = create_store("threads", THREADS_SCHEMA)
 
 
 def _row_to_thread(row: dict) -> Thread:

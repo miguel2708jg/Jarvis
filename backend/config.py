@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # Storage
     data_dir: str = Field(default="Data", alias="DATA_DIR")
     database_path: str | None = Field(default=None, alias="DATABASE_PATH")
+    database_url: str | None = Field(default=None, alias="DATABASE_URL")
     knowledge_vault_path: str = Field(default="Data/knowledge_vault", alias="KNOWLEDGE_VAULT_PATH")
     assistant_timezone: str | None = Field(default=None, alias="ASSISTANT_TIMEZONE")
 

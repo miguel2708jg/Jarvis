@@ -5,21 +5,12 @@ from typing import Any
 
 from backend.config import settings
 from backend.models.note import Note
+from backend.storage.factory import create_store
 from backend.storage.json_store import JsonStore
 from backend.storage.sqlite_store import SQLiteStore
+from backend.storage.schemas import NOTES_SCHEMA
 
-NOTES_SCHEMA = """
-CREATE TABLE IF NOT EXISTS notes (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    tags TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)
-"""
-
-_store = SQLiteStore("notes", NOTES_SCHEMA)
+_store = create_store("notes", NOTES_SCHEMA)
 _legacy_import_checked = False
 
 

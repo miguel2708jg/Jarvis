@@ -2,19 +2,10 @@
 from datetime import datetime, timezone
 
 from backend.models.message import Message
-from backend.storage.sqlite_store import SQLiteStore
+from backend.storage.factory import create_store
+from backend.storage.schemas import MESSAGES_SCHEMA
 
-MESSAGES_SCHEMA = """
-CREATE TABLE IF NOT EXISTS messages (
-    id TEXT PRIMARY KEY,
-    thread_id TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user',
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL
-)
-"""
-
-_store = SQLiteStore("messages", MESSAGES_SCHEMA)
+_store = create_store("messages", MESSAGES_SCHEMA)
 
 
 def _row_to_message(row: dict) -> Message:
@@ -71,7 +62,4 @@ def delete_message(message_id: str) -> str:
 
 def delete_messages_by_thread(thread_id: str) -> int:
     """Delete all messages in a thread."""
-    with _store._get_connection() as conn:
-        cursor = conn.execute("DELETE FROM messages WHERE thread_id = ?", (thread_id,))
-        conn.commit()
-        return cursor.rowcount
+    return _store.delete_where("thread_id = ?", (thread_id,))

@@ -6,21 +6,10 @@ from typing import Any
 from langchain_core.messages import BaseMessage, convert_to_messages, messages_from_dict
 from langchain_core.messages.base import messages_to_dict
 
-from backend.storage.sqlite_store import SQLiteStore
+from backend.storage.factory import create_store
+from backend.storage.schemas import THREAD_MEMORY_SCHEMA
 
-THREAD_MEMORY_SCHEMA = """
-CREATE TABLE IF NOT EXISTS thread_memory (
-    id TEXT PRIMARY KEY,
-    thread_id TEXT NOT NULL,
-    messages TEXT NOT NULL,
-    user_id TEXT,
-    session_id TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-)
-"""
-
-_store = SQLiteStore("thread_memory", THREAD_MEMORY_SCHEMA)
+_store = create_store("thread_memory", THREAD_MEMORY_SCHEMA)
 
 
 def _serialize_messages(messages: list[Any]) -> str:

@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primaryStrong,
     marginRight: 10,
     marginBottom: 6,
   },
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   userBubble: {
-    backgroundColor: colors.orange,
+    backgroundColor: colors.warning,
     borderTopRightRadius: 6,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.62)",

@@ -36,16 +36,25 @@ export default function AppNavigator() {
           headerShown: false,
           sceneContainerStyle: { backgroundColor: colors.background },
           tabBarHideOnKeyboard: true,
-          tabBarActiveTintColor: colors.ink,
-          tabBarInactiveTintColor: "rgba(255, 255, 255, 0.62)",
-          tabBarActiveBackgroundColor: colors.white,
+          tabBarActiveTintColor: colors.white,
+          tabBarInactiveTintColor: "rgba(255, 255, 255, 0.58)",
+          tabBarActiveBackgroundColor: "transparent",
           tabBarLabelStyle: styles.tabBarLabel,
           tabBarStyle: styles.tabBar,
           tabBarItemStyle: styles.tabBarItem,
           tabBarBackground: () => <View style={styles.tabBarBackground} />,
           tabBarIcon: ({ focused, color, size }) => {
             const tab = TABS.find((item) => item.name === route.name)!;
-            return <Ionicons name={focused ? tab.activeIcon : tab.icon} size={size} color={color} />;
+            const isCenter = route.name === "Chat";
+            return (
+              <View style={[isCenter && styles.centerIcon, focused && isCenter && styles.centerIconActive]}>
+                <Ionicons
+                  name={focused ? tab.activeIcon : tab.icon}
+                  size={isCenter ? 24 : size}
+                  color={isCenter ? colors.ink : color}
+                />
+              </View>
+            );
           },
         })}
       >
@@ -62,8 +71,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 24,
     right: 24,
-    bottom: 18,
-    height: 68,
+    bottom: 16,
+    height: 72,
     borderTopWidth: 0,
     backgroundColor: "transparent",
     elevation: 0,
@@ -73,18 +82,32 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: colors.tabBar,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
     ...shadows.card,
   },
   tabBarItem: {
-    paddingTop: 7,
+    paddingTop: 8,
     borderRadius: radii.pill,
     marginVertical: 8,
-    marginHorizontal: 4,
+    marginHorizontal: 2,
   },
   tabBarLabel: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "800",
     marginBottom: 4,
+  },
+  centerIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: -24,
+    backgroundColor: colors.warning,
+    borderWidth: 5,
+    borderColor: colors.background,
+  },
+  centerIconActive: {
+    backgroundColor: colors.warning,
   },
 });

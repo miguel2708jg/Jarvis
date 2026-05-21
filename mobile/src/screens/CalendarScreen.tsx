@@ -9,12 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import AppScreen from "../components/AppScreen";
+import { EmptyState } from "../components/design";
 import ModuleHero from "../components/ModuleHero";
-import ScreenBackground from "../components/ScreenBackground";
 import { useCalendar } from "../hooks/useJarvisApi";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
 
@@ -56,9 +56,7 @@ export default function CalendarScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenBackground />
-
+    <AppScreen>
       <FlatList
         data={events}
         keyExtractor={(event) => event.id}
@@ -89,12 +87,10 @@ export default function CalendarScreen() {
           </ModuleHero>
         }
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No events yet.</Text>
-            <Text style={styles.emptyText}>
-              Ask Jarvis to schedule a meeting, add a deadline, or build an agenda for the week.
-            </Text>
-          </View>
+          <EmptyState
+            title="No events yet."
+            text="Ask Jarvis to schedule a meeting, add a deadline, or build an agenda for the week."
+          />
         }
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -139,7 +135,7 @@ export default function CalendarScreen() {
           </TouchableOpacity>
         )}
       />
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
@@ -167,7 +163,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: radii.pill,
-    backgroundColor: "rgba(255, 255, 255, 0.55)",
+    backgroundColor: "rgba(255, 255, 255, 0.64)",
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
@@ -177,29 +173,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: 8,
   },
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 23,
-  },
   card: {
     flexDirection: "row",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: 14,
     borderWidth: 1,
@@ -209,7 +186,7 @@ const styles = StyleSheet.create({
   datePill: {
     width: 86,
     borderRadius: radii.md,
-    backgroundColor: colors.skySoft,
+    backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 16,

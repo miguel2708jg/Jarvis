@@ -14,13 +14,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import AppScreen from "../components/AppScreen";
+import { EmptyState, ModalSheet, PrimaryButton, SegmentedControl, TextField } from "../components/design";
 import type { Todo } from "../api/types";
 import ModuleHero from "../components/ModuleHero";
-import ScreenBackground from "../components/ScreenBackground";
 import { useTodos } from "../hooks/useJarvisApi";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
 
@@ -180,17 +180,15 @@ export default function TodosScreen() {
         error={error}
       >
         <View style={styles.filterRow}>
-          {(["pending", "all", "completed"] as TodoFilter[]).map((value) => (
-            <TouchableOpacity
-              key={value}
-              style={[styles.filterChip, filter === value && styles.filterChipActive]}
-              onPress={() => setFilter(value)}
-            >
-              <Text style={[styles.filterChipText, filter === value && styles.filterChipTextActive]}>
-                {value === "all" ? "All" : value === "pending" ? "Pending" : "Completed"}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          <SegmentedControl
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { label: "Pending", value: "pending" },
+              { label: "All", value: "all" },
+              { label: "Completed", value: "completed" },
+            ]}
+          />
         </View>
       </ModuleHero>
     </View>
@@ -205,9 +203,7 @@ export default function TodosScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenBackground />
-
+    <AppScreen>
       <FlatList
         data={filteredTodos}
         keyExtractor={(item) => item.id}
@@ -222,12 +218,10 @@ export default function TodosScreen() {
         }
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No ToDos in this filter.</Text>
-            <Text style={styles.emptyText}>
-              Add one manually or ask Jarvis to turn your next plan into concrete ToDos.
-            </Text>
-          </View>
+          <EmptyState
+            title="No ToDos in this filter."
+            text="Add one manually or ask Jarvis to turn your next plan into concrete ToDos."
+          />
         }
         renderItem={({ item }) => {
           const priority = PRIORITY_META[item.priority];
@@ -286,8 +280,22 @@ export default function TodosScreen() {
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.modalCard}>
-            <View style={styles.modalHandle} />
+          <ModalSheet
+            footer={
+              <>
+                <PrimaryButton variant="light" style={styles.secondaryButton} onPress={closeModal}>
+                  Cancel
+                </PrimaryButton>
+                <PrimaryButton
+                  style={[styles.primaryButton, isSaving && styles.disabledButton]}
+                  onPress={handleSave}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving..." : editingTodo ? "Save changes" : "Create ToDo"}
+                </PrimaryButton>
+              </>
+            }
+          >
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.modalEyebrow}>{editingTodo ? "Edit ToDo" : "Create ToDo"}</Text>
               <Text style={styles.modalTitle}>
@@ -295,7 +303,7 @@ export default function TodosScreen() {
               </Text>
 
               <Text style={styles.inputLabel}>ToDo</Text>
-              <TextInput
+              <TextField
                 style={[styles.input, styles.taskInput]}
                 value={draft.text}
                 onChangeText={(text) => setDraft((current) => ({ ...current, text }))}
@@ -336,7 +344,7 @@ export default function TodosScreen() {
               </View>
 
               <Text style={styles.inputLabel}>Due date</Text>
-              <TextInput
+              <TextField
                 style={styles.input}
                 value={draft.due_date}
                 onChangeText={(due_date) => setDraft((current) => ({ ...current, due_date }))}
@@ -345,25 +353,10 @@ export default function TodosScreen() {
                 autoCapitalize="none"
               />
             </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.secondaryButton} onPress={closeModal}>
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.primaryButton, isSaving && styles.disabledButton]}
-                onPress={handleSave}
-                disabled={isSaving}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {isSaving ? "Saving..." : editingTodo ? "Save changes" : "Create ToDo"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ModalSheet>
         </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
@@ -383,56 +376,14 @@ const styles = StyleSheet.create({
     paddingBottom: 128,
   },
   filterRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    width: "100%",
     marginTop: spacing.md,
-  },
-  filterChip: {
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.44)",
-    backgroundColor: "rgba(255, 255, 255, 0.34)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  filterChipActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  filterChipText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.ink,
-  },
-  filterChipTextActive: {
-    color: colors.white,
-  },
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 23,
   },
   card: {
     flexDirection: "row",
     alignItems: "stretch",
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     padding: spacing.md,
     marginBottom: 14,
     borderWidth: 1,
@@ -496,23 +447,8 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: colors.overlay,
   },
-  modalCard: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: "92%",
-  },
-  modalHandle: {
-    width: 54,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: colors.border,
-    alignSelf: "center",
-    marginTop: 10,
-  },
   modalBody: {
-    padding: spacing.xl,
-    paddingBottom: spacing.md,
+    paddingBottom: 0,
   },
   modalEyebrow: {
     color: colors.accentStrong,
@@ -536,14 +472,6 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.backgroundMuted,
     marginBottom: spacing.md,
   },
   taskInput: {
@@ -569,37 +497,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.textMuted,
   },
-  modalActions: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 30,
-  },
   secondaryButton: {
     flex: 1,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 15,
-    alignItems: "center",
     marginRight: 12,
-    backgroundColor: colors.backgroundMuted,
-  },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.textMuted,
   },
   primaryButton: {
     flex: 1.3,
-    borderRadius: radii.md,
-    backgroundColor: colors.ink,
-    paddingVertical: 15,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.white,
   },
   disabledButton: {
     opacity: 0.6,

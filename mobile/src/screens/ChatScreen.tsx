@@ -10,12 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import type { ToolActivity } from "../api/types";
+import AppScreen from "../components/AppScreen";
+import { Card, Chip, ErrorBanner, MetricCard, SectionTitle } from "../components/design";
 import MessageBubble from "../components/MessageBubble";
-import ScreenBackground from "../components/ScreenBackground";
 import { useJarvisChat } from "../hooks/useJarvisChat";
 import { getPersonality, PERSONALITIES } from "../personalities";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
@@ -84,21 +84,18 @@ function ActivityCard({
   }
 
   return (
-    <View style={styles.activityCard}>
+    <Card style={styles.activityCard}>
       <View style={styles.activityHeader}>
-        <Text style={styles.sectionEyebrow}>Live Activity</Text>
-        <Text style={styles.activityTitle}>
-          {activeTools.length > 0 ? "Jarvis is using tools" : "Latest assistant activity"}
-        </Text>
+        <SectionTitle
+          eyebrow="Live Activity"
+          title={activeTools.length > 0 ? "Jarvis is using tools" : "Latest assistant activity"}
+        />
       </View>
 
       {activeTools.length > 0 ? (
         <View style={styles.toolRow}>
           {activeTools.map((tool) => (
-            <View key={tool.name} style={styles.toolChip}>
-              <Ionicons name={getToolIcon(tool.name)} size={15} color={colors.accentStrong} />
-              <Text style={styles.toolChipText}>{formatToolName(tool.name)}</Text>
-            </View>
+            <Chip key={tool.name} icon={getToolIcon(tool.name)} label={formatToolName(tool.name)} />
           ))}
         </View>
       ) : null}
@@ -112,8 +109,8 @@ function ActivityCard({
         </View>
       ) : null}
 
-      {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
-    </View>
+      <ErrorBanner error={error} />
+    </Card>
   );
 }
 
@@ -156,7 +153,7 @@ export default function ChatScreen() {
     <View>
       <View style={styles.heroCard}>
         <View style={styles.heroGlow} />
-        <Text style={styles.heroEyebrow}>Personal AI Operator</Text>
+          <Text style={styles.heroEyebrow}>Personal AI Operator</Text>
 
         <View style={styles.heroTopRow}>
           <View style={styles.heroCopy}>
@@ -173,31 +170,22 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        <View style={styles.heroMetricRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>4</Text>
-            <Text style={styles.metricLabel}>Core modules</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>Live</Text>
-            <Text style={styles.metricLabel}>Streaming replies</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricValue}>Tools</Text>
-            <Text style={styles.metricLabel}>Action-aware chat</Text>
-          </View>
+          <View style={styles.heroMetricRow}>
+          <MetricCard value="4" label="Core modules" />
+          <MetricCard value="Live" label="Streaming replies" />
+          <MetricCard value="Tools" label="Action-aware chat" />
         </View>
       </View>
 
       {messages.length === 0 ? (
-        <View style={styles.emptyCard}>
+        <Card style={styles.emptyCard}>
           <Text style={styles.sectionEyebrow}>Start Here</Text>
           <Text style={styles.emptyTitle}>Use Jarvis like an operator, not a chatbot.</Text>
           <Text style={styles.emptyText}>
             Give it goals, context, and constraints. It already understands your productivity
             surfaces and can route work across them.
           </Text>
-        </View>
+        </Card>
       ) : null}
 
       <View style={styles.personalityBlock}>
@@ -285,9 +273,7 @@ export default function ChatScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenBackground />
-
+    <AppScreen>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -338,7 +324,7 @@ export default function ChatScreen() {
           </Text>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
@@ -360,10 +346,12 @@ const styles = StyleSheet.create({
   heroCard: {
     position: "relative",
     overflow: "hidden",
-    backgroundColor: colors.lavender,
+    backgroundColor: colors.primarySoft,
     borderRadius: radii.xl,
     padding: spacing.xl,
     marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: "rgba(47, 125, 106, 0.16)",
     ...shadows.card,
   },
   heroGlow: {
@@ -373,11 +361,11 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     top: -90,
     right: -20,
-    backgroundColor: "rgba(255, 255, 255, 0.32)",
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
     transform: [{ rotate: "18deg" }],
   },
   heroEyebrow: {
-    color: colors.ink,
+    color: colors.primaryStrong,
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.7,
@@ -401,7 +389,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   heroSubtitle: {
-    color: "rgba(9, 10, 20, 0.66)",
+    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 22,
   },
@@ -437,35 +425,11 @@ const styles = StyleSheet.create({
   },
   heroMetricRow: {
     flexDirection: "row",
+    gap: spacing.sm,
     marginTop: spacing.lg,
   },
-  metricCard: {
-    flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.56)",
-    borderRadius: radii.md,
-    padding: 14,
-    marginRight: spacing.sm,
-  },
-  metricValue: {
-    color: colors.ink,
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  metricLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
-    fontWeight: "600",
-  },
   emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
     marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
   },
   sectionEyebrow: {
     color: colors.accentStrong,
@@ -519,8 +483,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   normalChipActive: {
-    backgroundColor: colors.lavender,
-    borderColor: colors.lavender,
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primarySoft,
   },
   normalChipText: {
     color: colors.textMuted,
@@ -547,8 +511,8 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   personalityChipActive: {
-    backgroundColor: colors.lavender,
-    borderColor: colors.lavender,
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primarySoft,
   },
   personalityIcon: {
     width: 34,
@@ -606,7 +570,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: colors.skySoft,
+    backgroundColor: colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
@@ -617,43 +581,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   activityCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
+    marginBottom: spacing.md,
   },
   activityHeader: {
     marginBottom: spacing.sm,
-  },
-  activityTitle: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "800",
   },
   toolRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     marginTop: spacing.sm,
-  },
-  toolChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginRight: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  toolChipText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "700",
-    marginLeft: 8,
   },
   completedChip: {
     flexDirection: "row",
@@ -671,21 +607,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: 8,
   },
-  errorBanner: {
-    marginTop: spacing.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: radii.sm,
-    backgroundColor: colors.dangerSoft,
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: "700",
-  },
   composerWrap: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: 106,
-    backgroundColor: "rgba(247, 244, 255, 0.96)",
+    backgroundColor: "rgba(239, 247, 239, 0.96)",
   },
   composerShell: {
     flexDirection: "row",
@@ -711,8 +637,8 @@ const styles = StyleSheet.create({
   sendButton: {
     width: 48,
     height: 48,
-    borderRadius: 16,
-    backgroundColor: colors.tabBar,
+    borderRadius: 24,
+    backgroundColor: colors.warning,
     alignItems: "center",
     justifyContent: "center",
   },

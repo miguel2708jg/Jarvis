@@ -8,14 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import AppScreen from "../components/AppScreen";
+import { EmptyState, PrimaryButton } from "../components/design";
 import { apiClient } from "../api/client";
 import type { EmailMessage } from "../api/types";
 import ModuleHero from "../components/ModuleHero";
-import ScreenBackground from "../components/ScreenBackground";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
 
 export default function EmailScreen() {
@@ -54,9 +54,7 @@ export default function EmailScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenBackground />
-
+    <AppScreen>
       <FlatList
         data={emails}
         keyExtractor={(email) => email.message_id}
@@ -84,15 +82,15 @@ export default function EmailScreen() {
           </ModuleHero>
         }
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No emails available.</Text>
-            <Text style={styles.emptyText}>
-              Configure Gmail credentials to enable inbox access, then ask Jarvis to summarize what matters.
-            </Text>
+          <View>
+            <EmptyState
+              title="No emails available."
+              text="Configure Gmail credentials to enable inbox access, then ask Jarvis to summarize what matters."
+            />
             {error ? (
-              <TouchableOpacity onPress={fetchEmails} style={styles.retryButton}>
-                <Text style={styles.retryText}>Retry inbox sync</Text>
-              </TouchableOpacity>
+              <PrimaryButton onPress={fetchEmails} style={styles.retryButton}>
+                Retry inbox sync
+              </PrimaryButton>
             ) : null}
           </View>
         }
@@ -125,7 +123,7 @@ export default function EmailScreen() {
           </TouchableOpacity>
         )}
       />
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
@@ -153,51 +151,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: radii.pill,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.64)",
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
   heroHintText: {
-    color: colors.white,
+    color: colors.ink,
     fontSize: 12,
     fontWeight: "700",
     marginLeft: 8,
   },
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 23,
-  },
   retryButton: {
     marginTop: spacing.lg,
     alignSelf: "flex-start",
-    borderRadius: radii.pill,
-    backgroundColor: colors.ink,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  retryText: {
-    color: colors.white,
-    fontSize: 13,
-    fontWeight: "800",
   },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     padding: spacing.lg,
     marginBottom: 12,
     borderWidth: 1,
@@ -205,8 +175,8 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   cardUnread: {
-    borderColor: "#C2EDF2",
-    backgroundColor: "#FCFFFE",
+    borderColor: colors.primarySoft,
+    backgroundColor: colors.surfaceMuted,
   },
   row: {
     flexDirection: "row",
@@ -228,7 +198,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   unreadMarker: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.warning,
   },
   sender: {
     fontWeight: "800",

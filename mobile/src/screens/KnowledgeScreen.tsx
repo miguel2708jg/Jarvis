@@ -14,12 +14,12 @@ import {
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "@react-navigation/native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
+import AppScreen from "../components/AppScreen";
+import { Card, EmptyState, IconButton, PrimaryButton, TextField } from "../components/design";
 import type { KnowledgePage, KnowledgePageDetail } from "../api/types";
 import ModuleHero from "../components/ModuleHero";
-import ScreenBackground from "../components/ScreenBackground";
 import { useKnowledge } from "../hooks/useJarvisApi";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
 
@@ -148,8 +148,7 @@ export default function KnowledgeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenBackground />
+    <AppScreen>
       <FlatList
         data={pages}
         keyExtractor={(item) => item.path}
@@ -174,9 +173,9 @@ export default function KnowledgeScreen() {
               error={error}
             />
 
-            <View style={styles.actionsCard}>
+            <Card style={styles.actionsCard}>
               <Text style={styles.sectionTitle}>Operations</Text>
-              <TextInput
+              <TextField
                 value={noteId}
                 onChangeText={setNoteId}
                 placeholder="Note ID to ingest"
@@ -184,19 +183,17 @@ export default function KnowledgeScreen() {
                 style={styles.input}
               />
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.secondaryButton} onPress={handleIngestNote}>
-                  <Ionicons name="archive-outline" size={16} color={colors.text} />
-                  <Text style={styles.secondaryButtonText}>Ingest note</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton} onPress={handleUploadFile}>
-                  <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
-                  <Text style={styles.secondaryButtonText}>Upload file</Text>
-                </TouchableOpacity>
+                <PrimaryButton variant="light" icon="archive-outline" style={styles.secondaryButton} onPress={handleIngestNote}>
+                  Ingest note
+                </PrimaryButton>
+                <PrimaryButton variant="light" icon="cloud-upload-outline" style={styles.secondaryButton} onPress={handleUploadFile}>
+                  Upload file
+                </PrimaryButton>
               </View>
-            </View>
+            </Card>
 
-            <View style={styles.filtersCard}>
-              <TextInput
+            <Card style={styles.filtersCard}>
+              <TextField
                 value={query}
                 onChangeText={setQuery}
                 onSubmitEditing={refreshWithFilters}
@@ -220,9 +217,9 @@ export default function KnowledgeScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-            </View>
+            </Card>
 
-            <View style={styles.sourcesCard}>
+            <Card style={styles.sourcesCard}>
               <Text style={styles.sectionTitle}>Recent sources</Text>
               {sources.slice(0, 6).map((source) => (
                 <View key={source.source_id} style={styles.sourceRow}>
@@ -232,7 +229,7 @@ export default function KnowledgeScreen() {
                   </Text>
                 </View>
               ))}
-            </View>
+            </Card>
           </View>
         }
         ListEmptyComponent={
@@ -241,10 +238,7 @@ export default function KnowledgeScreen() {
               <ActivityIndicator size="large" color={colors.accentStrong} />
             </View>
           ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No knowledge pages found.</Text>
-              <Text style={styles.emptyText}>Ingest a note or upload a file to compile the first pages.</Text>
-            </View>
+            <EmptyState title="No knowledge pages found." text="Ingest a note or upload a file to compile the first pages." />
           )
         }
       />
@@ -252,9 +246,7 @@ export default function KnowledgeScreen() {
       <Modal visible={detailOpen} animationType="slide" transparent onRequestClose={() => setDetailOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setDetailOpen(false)}>
-              <Ionicons name="close" size={20} color={colors.text} />
-            </TouchableOpacity>
+            <IconButton icon="close" style={styles.modalClose} onPress={() => setDetailOpen(false)} />
             {detail ? (
               <ScrollView contentContainerStyle={styles.modalBody}>
                 <Text style={styles.modalType}>{detail.type.toUpperCase()}</Text>
@@ -284,7 +276,7 @@ export default function KnowledgeScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
@@ -298,31 +290,13 @@ const styles = StyleSheet.create({
     paddingBottom: 128,
   },
   actionsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
     marginBottom: spacing.md,
-    ...shadows.soft,
   },
   filtersCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
     marginBottom: spacing.md,
-    ...shadows.soft,
   },
   sourcesCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
     marginBottom: spacing.md,
-    ...shadows.soft,
   },
   sectionTitle: {
     fontSize: 18,
@@ -331,13 +305,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: colors.backgroundMuted,
-    color: colors.text,
     marginBottom: spacing.sm,
   },
   actionRow: {
@@ -346,20 +313,6 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.backgroundMuted,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: {
-    marginLeft: 8,
-    color: colors.text,
-    fontWeight: "700",
-    fontSize: 14,
   },
   typeRow: {
     paddingVertical: 4,
@@ -402,7 +355,7 @@ const styles = StyleSheet.create({
   },
   pageCard: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.lg,
@@ -463,24 +416,6 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     alignItems: "center",
   },
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: spacing.xs,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
-  },
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -496,12 +431,6 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     marginTop: 10,
     marginRight: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.backgroundMuted,
   },
   modalBody: {
     padding: spacing.lg,

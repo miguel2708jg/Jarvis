@@ -14,13 +14,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import AppScreen from "../components/AppScreen";
+import { EmptyState, ModalSheet, PrimaryButton, TextField } from "../components/design";
 import type { Note } from "../api/types";
 import ModuleHero from "../components/ModuleHero";
-import ScreenBackground from "../components/ScreenBackground";
 import { useKnowledge, useNotes } from "../hooks/useJarvisApi";
 import { colors, radii, shadows, spacing } from "../theme/tokens";
 
@@ -179,9 +179,7 @@ export default function NotesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScreenBackground />
-
+    <AppScreen>
       <FlatList
         data={notes}
         keyExtractor={(item) => item.id}
@@ -196,12 +194,10 @@ export default function NotesScreen() {
         }
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No notes yet.</Text>
-            <Text style={styles.emptyText}>
-              Start one here or ask Jarvis in chat to create a structured note from your next idea.
-            </Text>
-          </View>
+          <EmptyState
+            title="No notes yet."
+            text="Start one here or ask Jarvis in chat to create a structured note from your next idea."
+          />
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
@@ -242,8 +238,22 @@ export default function NotesScreen() {
           style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.modalCard}>
-            <View style={styles.modalHandle} />
+          <ModalSheet
+            footer={
+              <>
+                <PrimaryButton variant="light" style={styles.secondaryButton} onPress={closeModal}>
+                  Cancel
+                </PrimaryButton>
+                <PrimaryButton
+                  style={[styles.primaryButton, isSaving && styles.disabledButton]}
+                  onPress={handleSave}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving..." : editingNote ? "Save changes" : "Create note"}
+                </PrimaryButton>
+              </>
+            }
+          >
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.modalEyebrow}>{editingNote ? "Edit note" : "Create note"}</Text>
               <Text style={styles.modalTitle}>
@@ -251,7 +261,7 @@ export default function NotesScreen() {
               </Text>
 
               <Text style={styles.inputLabel}>Title</Text>
-              <TextInput
+              <TextField
                 style={styles.input}
                 value={draft.title}
                 onChangeText={(title) => setDraft((current) => ({ ...current, title }))}
@@ -260,7 +270,7 @@ export default function NotesScreen() {
               />
 
               <Text style={styles.inputLabel}>Content</Text>
-              <TextInput
+              <TextField
                 style={[styles.input, styles.contentInput]}
                 value={draft.content}
                 onChangeText={(content) => setDraft((current) => ({ ...current, content }))}
@@ -271,7 +281,7 @@ export default function NotesScreen() {
               />
 
               <Text style={styles.inputLabel}>Tags</Text>
-              <TextInput
+              <TextField
                 style={styles.input}
                 value={draft.tags}
                 onChangeText={(tags) => setDraft((current) => ({ ...current, tags }))}
@@ -279,25 +289,10 @@ export default function NotesScreen() {
                 placeholderTextColor={colors.textSoft}
               />
             </ScrollView>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.secondaryButton} onPress={closeModal}>
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.primaryButton, isSaving && styles.disabledButton]}
-                onPress={handleSave}
-                disabled={isSaving}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {isSaving ? "Saving..." : editingNote ? "Save changes" : "Create note"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </ModalSheet>
         </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
@@ -337,28 +332,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: 8,
   },
-  emptyCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.soft,
-  },
-  emptyTitle: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 15,
-    lineHeight: 23,
-  },
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radii.lg,
+    borderRadius: radii.md,
     padding: spacing.lg,
     marginBottom: 14,
     borderWidth: 1,
@@ -423,23 +399,8 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: colors.overlay,
   },
-  modalCard: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: "92%",
-  },
-  modalHandle: {
-    width: 54,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: colors.border,
-    alignSelf: "center",
-    marginTop: 10,
-  },
   modalBody: {
-    padding: spacing.xl,
-    paddingBottom: spacing.md,
+    paddingBottom: 0,
   },
   modalEyebrow: {
     color: colors.accentStrong,
@@ -463,50 +424,17 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.backgroundMuted,
     marginBottom: spacing.md,
   },
   contentInput: {
     minHeight: 160,
   },
-  modalActions: {
-    flexDirection: "row",
-    paddingHorizontal: spacing.xl,
-    paddingBottom: 30,
-  },
   secondaryButton: {
     flex: 1,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 15,
-    alignItems: "center",
     marginRight: 12,
-    backgroundColor: colors.backgroundMuted,
-  },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.textMuted,
   },
   primaryButton: {
     flex: 1.3,
-    borderRadius: radii.md,
-    backgroundColor: colors.ink,
-    paddingVertical: 15,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.white,
   },
   disabledButton: {
     opacity: 0.6,

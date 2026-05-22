@@ -29,6 +29,7 @@ FastAPI -------- LangGraph Agent -------- Ollama
 | Notes service | `backend/services/notes_service.py` | Notes domain logic |
 | Calendar service | `backend/services/calendar_service.py` | Local SQLite calendar event logic |
 | Knowledge service | `backend/services/knowledge_service.py` | Vault initialization, ingest, lint, index/log generation |
+| Object storage | `backend/storage/object_store.py` | Local or Railway S3-compatible raw upload storage |
 | API routers | `backend/api/routers/` | REST + WebSocket endpoints |
 
 ## Knowledge Vault subsystem
@@ -54,6 +55,9 @@ knowledge_vault/
 
 Key rules:
 - Raw sources are immutable snapshots.
+- Raw file uploads can be stored locally or in a private Railway Bucket with `OBJECT_STORAGE_PROVIDER=s3`.
 - LLM writes only wiki content pages.
 - `wiki/index.md` and `wiki/log.md` are system-generated.
 - Retrieval is lexical index-first (no vector DB in v1).
+
+Railway Storage Buckets are private S3-compatible buckets. Configure the backend with Railway variable references for `BUCKET`, `ENDPOINT`, `REGION`, `ACCESS_KEY_ID`, and `SECRET_ACCESS_KEY`; the backend maps them to the `S3_*` settings and proxies raw source downloads through `/knowledge/sources/{source_id}/raw`.

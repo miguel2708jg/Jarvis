@@ -21,8 +21,12 @@ All tools are registered in `backend/tools/registry.py`. To add a new tool:
 |---|---|
 | `create_todo(text, priority?, due_date?)` | Create a to-do item |
 | `list_todos(show_completed?)` | List todos (incomplete by default) |
+| `get_todo(todo_id)` | Fetch a todo by ID |
+| `update_todo(todo_id, text?, priority?, due_date?, completed?, clear_due_date?)` | Update todo fields |
 | `complete_todo(todo_id)` | Mark a todo as done |
 | `delete_todo(todo_id)` | Delete a todo |
+
+The standalone MCP server in `backend/mcp_server.py` exposes the same notes and todos CRUD surface as the LangChain agent tools.
 
 ## Calendar tools
 

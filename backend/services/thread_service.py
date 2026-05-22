@@ -38,6 +38,19 @@ def create_thread(title: str | None = None, user_id: str = "default") -> dict:
     return thread.model_dump()
 
 
+def ensure_thread(thread_id: str, title: str | None = None, user_id: str = "default") -> dict:
+    """Create a thread with a caller-provided ID if it does not exist."""
+    existing = get_thread(thread_id)
+    if existing:
+        return existing
+
+    now = datetime.now(timezone.utc)
+    thread = Thread(id=thread_id, title=title, user_id=user_id, created_at=now, updated_at=now)
+    data = _thread_to_data(thread)
+    _store.set(thread.id, data)
+    return thread.model_dump()
+
+
 def list_threads(user_id: str | None = None) -> list[dict]:
     """List all threads, optionally filtered by user_id."""
     if user_id:
@@ -45,6 +58,7 @@ def list_threads(user_id: str | None = None) -> list[dict]:
     else:
         rows = _store.all()
     threads = [_row_to_thread(row) for row in rows]
+    threads.sort(key=lambda thread: thread.updated_at, reverse=True)
     return [t.model_dump() for t in threads]
 
 
@@ -65,6 +79,18 @@ def update_thread(thread_id: str, title: str | None = None) -> dict | None:
     thread = _row_to_thread(row)
     if title is not None:
         thread.title = title
+    thread.updated_at = datetime.now(timezone.utc)
+    data = _thread_to_data(thread)
+    _store.set(thread.id, data)
+    return thread.model_dump()
+
+
+def touch_thread(thread_id: str) -> dict | None:
+    """Update a thread's updated_at timestamp."""
+    row = _store.get(thread_id)
+    if not row:
+        return None
+    thread = _row_to_thread(row)
     thread.updated_at = datetime.now(timezone.utc)
     data = _thread_to_data(thread)
     _store.set(thread.id, data)

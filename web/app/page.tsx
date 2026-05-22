@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowUp,
@@ -10,22 +10,27 @@ import {
   Circle,
   Clock,
   CloudUpload,
+  FolderOpen,
   FileText,
   Inbox,
   Library,
   Mail,
   MapPin,
+  Mic,
   Pencil,
   Plus,
   Search,
   Settings,
   Sparkles,
+  Square,
   Trash2,
+  Volume2,
   X,
 } from "lucide-react";
 import { PERSONALITIES, getPersonality } from "@/lib/personalities";
-import { useCalendar, useEmails, useJarvisChat, useKnowledge, useNotes, useTodos } from "@/lib/hooks";
-import type { ChatMessage, KnowledgePage, KnowledgePageDetail, Note, Todo } from "@/lib/types";
+import { API_URL, apiClient } from "@/lib/api";
+import { useCalendar, useEmails, useJarvisChat, useKnowledge, useNotes, useThreads, useTodos } from "@/lib/hooks";
+import type { ChatMessage, KnowledgePage, KnowledgePageDetail, Note, PersonalityId, Todo, VoiceResponse } from "@/lib/types";
 
 type TabId = "chat" | "notes" | "knowledge" | "todos" | "calendar" | "email" | "settings";
 
@@ -154,13 +159,30 @@ function Modal({
   );
 }
 
-function MessageBubble({ message, agentName }: { message: ChatMessage; agentName: string }) {
+function MessageBubble({
+  message,
+  agentName,
+  onSpeak,
+  speaking,
+}: {
+  message: ChatMessage;
+  agentName: string;
+  onSpeak?: (message: ChatMessage) => void;
+  speaking?: boolean;
+}) {
   const isUser = message.role === "user";
   return (
     <div className={`message-row ${isUser ? "right" : "left"}`}>
       {!isUser ? <div className="avatar">{agentName.slice(0, 1).toUpperCase()}</div> : null}
       <div className="message-stack">
-        <span className="message-label">{isUser ? "You" : agentName}</span>
+        <span className="message-label">
+          {isUser ? "You" : agentName}
+          {!isUser && onSpeak ? (
+            <button className="inline-icon-button" onClick={() => onSpeak(message)} disabled={message.isStreaming || speaking} aria-label="Play response">
+              <Volume2 size={13} />
+            </button>
+          ) : null}
+        </span>
         <div className={`bubble ${isUser ? "user" : "assistant"}`}>
           {message.isStreaming && !message.content ? <span className="typing">...</span> : message.content}
           {message.isStreaming && message.content ? <span className="cursor">|</span> : null}
@@ -172,17 +194,204 @@ function MessageBubble({ message, agentName }: { message: ChatMessage; agentName
 
 function ChatScreen({ agentName }: { agentName: string }) {
   const [input, setInput] = useState("");
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const chat = useJarvisChat();
+  const threads = useThreads();
   const selectedPersonality = getPersonality(chat.activePersonality);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wasStreamingRef = useRef(false);
+  const bootstrapStartedRef = useRef(false);
+
+  const personalityStorageKey = "jarvis.threadPersonalities";
+
+  const readPersonalityMap = (): Record<string, PersonalityId | null> => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem(personalityStorageKey) || "{}");
+    } catch {
+      return {};
+    }
+  };
+
+  const writeThreadPersonality = (threadId: string, personalityId: PersonalityId | null) => {
+    if (typeof window === "undefined") return;
+    const next = { ...readPersonalityMap(), [threadId]: personalityId };
+    window.localStorage.setItem(personalityStorageKey, JSON.stringify(next));
+  };
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [chat.messages]);
+
+  useEffect(() => {
+    return () => {
+      recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  const loadThread = useCallback(
+    async (threadId: string) => {
+      const storedMessages = await threads.getMessages(threadId);
+      chat.setSessionId(threadId, storedMessages ?? []);
+      chat.setPersonality(readPersonalityMap()[threadId] ?? null);
+    },
+    [chat, threads]
+  );
+
+  const createConversation = useCallback(async () => {
+    const created = await threads.create({ title: "Nueva conversacion", user_id: "default" });
+    if (!created) return null;
+    writeThreadPersonality(created.id, chat.activePersonality);
+    await threads.refresh();
+    await loadThread(created.id);
+    return created;
+  }, [chat.activePersonality, loadThread, threads]);
+
+  useEffect(() => {
+    if (bootstrapped || bootstrapStartedRef.current) return;
+    bootstrapStartedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      const existingThreads = await threads.refresh();
+      if (cancelled) return;
+      const firstThread = existingThreads?.[0];
+      if (firstThread) await loadThread(firstThread.id);
+      else await createConversation();
+      if (!cancelled) setBootstrapped(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapped, createConversation, loadThread, threads]);
+
+  useEffect(() => {
+    if (wasStreamingRef.current && !chat.isStreaming) {
+      threads.refresh();
+    }
+    wasStreamingRef.current = chat.isStreaming;
+  }, [chat.isStreaming, threads]);
+
+  useEffect(() => {
+    writeThreadPersonality(chat.sessionId, chat.activePersonality);
+  }, [chat.activePersonality, chat.sessionId]);
 
   const send = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || chat.isStreaming || !chat.isConnected) return;
     setInput("");
     chat.sendMessage(trimmed);
+  };
+
+  const setPersonality = (personalityId: PersonalityId | null) => {
+    chat.setPersonality(personalityId);
+    writeThreadPersonality(chat.sessionId, personalityId);
+  };
+
+  const deleteConversation = async (threadId: string) => {
+    if (!confirm("Delete this conversation?")) return;
+    const removed = await threads.remove(threadId);
+    if (!removed) return;
+    const nextThreads = await threads.refresh();
+    const next = nextThreads?.[0];
+    if (next) await loadThread(next.id);
+    else await createConversation();
+  };
+
+  const playBase64Audio = (audioBase64: string, id: string) => {
+    audioRef.current?.pause();
+    const binary = atob(audioBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    setSpeakingMessageId(id);
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+      setSpeakingMessageId(null);
+    };
+    audio.onerror = () => {
+      URL.revokeObjectURL(url);
+      setSpeakingMessageId(null);
+    };
+    audio.play().catch(() => {
+      URL.revokeObjectURL(url);
+      setSpeakingMessageId(null);
+    });
+  };
+
+  const speakMessage = async (message: ChatMessage) => {
+    if (!message.content.trim()) return;
+    setVoiceError(null);
+    setSpeakingMessageId(message.id);
+    try {
+      const { data } = await apiClient.post<{ audio_base64: string }>("/voice/tts", { text: message.content });
+      playBase64Audio(data.audio_base64, message.id);
+    } catch (error) {
+      setVoiceError(error instanceof Error ? error.message : "Could not synthesize speech.");
+      setSpeakingMessageId(null);
+    }
+  };
+
+  const reloadActiveThread = async () => {
+    const storedMessages = await threads.getMessages(chat.sessionId);
+    chat.setSessionId(chat.sessionId, storedMessages ?? []);
+    await threads.refresh();
+  };
+
+  const submitVoice = async (blob: Blob) => {
+    setIsProcessingVoice(true);
+    setVoiceError(null);
+    try {
+      const form = new FormData();
+      form.append("audio", blob, "recording.webm");
+      form.append("session_id", chat.sessionId);
+      if (chat.activePersonality) form.append("personality_id", chat.activePersonality);
+      const response = await fetch(`${API_URL}/voice`, { method: "POST", body: form });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail ?? "Voice request failed.");
+      const data = (await response.json()) as VoiceResponse;
+      await reloadActiveThread();
+      playBase64Audio(data.audio_base64, `voice-${Date.now()}`);
+    } catch (error) {
+      setVoiceError(error instanceof Error ? error.message : "Voice request failed.");
+    } finally {
+      setIsProcessingVoice(false);
+    }
+  };
+
+  const startRecording = async () => {
+    setVoiceError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      chunksRef.current = [];
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        if (blob.size > 0) submitVoice(blob);
+      };
+      recorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      setVoiceError(error instanceof Error ? error.message : "Microphone permission failed.");
+    }
+  };
+
+  const stopRecording = () => {
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+    setIsRecording(false);
   };
 
   return (
@@ -196,20 +405,50 @@ function ChatScreen({ agentName }: { agentName: string }) {
           { label: "Streaming replies", value: "Live" },
           { label: "Action-aware chat", value: "Tools" },
         ]}
-        error={chat.error}
+        error={chat.error || voiceError}
       >
         <div className={`status-pill ${chat.isConnected ? "online" : "offline"}`}>
           <span />{chat.isConnected ? "Connected" : "Connecting"}
         </div>
       </Hero>
 
+      <section className="chat-workspace">
+        <aside className="thread-panel">
+          <div className="section-head">
+            <div>
+              <p className="eyebrow">Conversations</p>
+              <h2>History</h2>
+            </div>
+            <button className="icon-button" onClick={() => createConversation()} aria-label="New conversation">
+              <Plus size={17} />
+            </button>
+          </div>
+          <div className="thread-list">
+            {threads.items.map((thread) => (
+              <button
+                className={thread.id === chat.sessionId ? "thread-item active" : "thread-item"}
+                key={thread.id}
+                onClick={() => loadThread(thread.id)}
+              >
+                <span>{thread.title || "Nueva conversacion"}</span>
+                <small>{formatDate(thread.updated_at, { month: "short", day: "numeric" })}</small>
+              </button>
+            ))}
+          </div>
+          <button className="text-danger-button" onClick={() => deleteConversation(chat.sessionId)} disabled={threads.items.length === 0}>
+            <Trash2 size={15} />
+            Delete current
+          </button>
+        </aside>
+
+        <div className="chat-main">
       <section className="panel">
         <div className="section-head">
           <div>
             <p className="eyebrow">Personality</p>
             <h2>{selectedPersonality?.name ?? `${agentName} normal`}</h2>
           </div>
-          <button className={!chat.activePersonality ? "chip active" : "chip"} onClick={() => chat.setPersonality(null)} disabled={chat.isStreaming}>
+          <button className={!chat.activePersonality ? "chip active" : "chip"} onClick={() => setPersonality(null)} disabled={chat.isStreaming}>
             Normal
           </button>
         </div>
@@ -218,7 +457,7 @@ function ChatScreen({ agentName }: { agentName: string }) {
             <button
               className={chat.activePersonality === personality.id ? "personality active" : "personality"}
               key={personality.id}
-              onClick={() => chat.setPersonality(personality.id)}
+              onClick={() => setPersonality(personality.id)}
               disabled={chat.isStreaming}
             >
               <Icon size={18} />
@@ -256,16 +495,35 @@ function ChatScreen({ agentName }: { agentName: string }) {
             <h2>Use {agentName} like an operator, not a chatbot.</h2>
             <p>Give it goals, context, and constraints. Tool activity appears while {agentName} works.</p>
           </div>
-        ) : chat.messages.map((message) => <MessageBubble key={message.id} message={message} agentName={agentName} />)}
+        ) : chat.messages.map((message) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            agentName={agentName}
+            onSpeak={message.role === "assistant" ? speakMessage : undefined}
+            speaking={speakingMessageId === message.id}
+          />
+        ))}
         <div ref={endRef} />
       </section>
 
       <form className="composer" onSubmit={(event) => { event.preventDefault(); send(input); }}>
         <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder={chat.isConnected ? `Ask ${agentName} to organize the next move` : "Waiting for connection"} />
+        <button
+          className={isRecording ? "voice-button recording" : "voice-button"}
+          type="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={chat.isStreaming || isProcessingVoice}
+          aria-label={isRecording ? "Stop recording" : "Start recording"}
+        >
+          {isRecording ? <Square size={16} /> : <Mic size={17} />}
+        </button>
         <button className="send-button" disabled={!chat.isConnected || chat.isStreaming || !input.trim()} aria-label="Send message">
           <ArrowUp size={18} />
         </button>
       </form>
+        </div>
+      </section>
     </div>
   );
 }
@@ -455,6 +713,7 @@ function KnowledgeScreen() {
             const result = await knowledge.uploadFile(file);
             window.alert(result ? `${result.touched_pages.length} page(s) updated.` : "Upload failed.");
           }} /></label>
+          <a className="soft-button" href="/documents"><FolderOpen size={16} />Open drive</a>
         </div>
       </section>
       <section className="panel">

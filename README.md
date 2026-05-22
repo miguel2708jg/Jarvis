@@ -27,6 +27,8 @@ If you are using a remote Ollama-compatible endpoint, set `OLLAMA_BASE_URL`, `OL
 
 Notes, todos, calendar events, thread memory, and the knowledge vault use local project storage. Calendar events are stored in SQLite and do not require Google Calendar credentials.
 
+Voice input/output is optional. For Groq STT + Piper TTS, set `STT_PROVIDER=groq`, `GROQ_API_KEY`, `GROQ_STT_MODEL`, `TTS_PROVIDER=piper`, and `TTS_VOICE`; Piper model files are resolved from `/tmp/piper-voices/{TTS_VOICE}.onnx` unless `PIPER_MODEL_PATH` is set.
+
 ## Ollama Cloud models
 
 To run Jarvis against Ollama Cloud directly, create an Ollama API key and set:

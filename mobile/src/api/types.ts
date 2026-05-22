@@ -80,6 +80,8 @@ export interface KnowledgeSource {
   title: string;
   created_at: string;
   raw_path: string;
+  raw_storage: "local" | "s3";
+  raw_object_key: string | null;
   extracted_path: string | null;
   note_id: string | null;
   original_filename: string | null;

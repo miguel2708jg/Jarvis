@@ -37,6 +37,22 @@ export interface CalendarEvent {
   created_at: string;
 }
 
+export interface Thread {
+  id: string;
+  title: string | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoredMessage {
+  id: string;
+  thread_id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  created_at: string;
+}
+
 export interface EmailMessage {
   message_id: string;
   sender: string;
@@ -54,6 +70,13 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
+}
+
+export interface VoiceResponse {
+  transcript: string;
+  response_text: string;
+  audio_base64: string;
+  session_id: string;
 }
 
 export interface StreamChunk {
@@ -85,6 +108,8 @@ export interface KnowledgeSource {
   title: string;
   created_at: string;
   raw_path: string;
+  raw_storage: "local" | "s3";
+  raw_object_key: string | null;
   extracted_path: string | null;
   note_id: string | null;
   original_filename: string | null;

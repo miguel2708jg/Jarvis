@@ -14,7 +14,9 @@ import type {
   KnowledgeStatus,
   Note,
   PersonalityId,
+  StoredMessage,
   StreamChunk,
+  Thread,
   Todo,
   ToolActivity,
 } from "./types";
@@ -139,6 +141,21 @@ export function useEmails() {
   return useCollection<EmailMessage>("/emails");
 }
 
+export function useThreads() {
+  const base = useCollection<Thread>("/threads");
+
+  const getMessages = useCallback(async (threadId: string): Promise<StoredMessage[] | null> => {
+    try {
+      const { data } = await apiClient.get<StoredMessage[]>(`/threads/${threadId}/messages`);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  return { ...base, getMessages };
+}
+
 export function useKnowledge() {
   const [status, setStatus] = useState<KnowledgeStatus | null>(null);
   const [pages, setPages] = useState<KnowledgePage[]>([]);
@@ -229,6 +246,7 @@ export function useKnowledge() {
 
 export function useJarvisChat(initialSessionId?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessionId, setSessionIdState] = useState<string>(initialSessionId ?? createId());
   const [activePersonality, setActivePersonality] = useState<PersonalityId | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -237,8 +255,18 @@ export function useJarvisChat(initialSessionId?: string) {
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
-  const sessionIdRef = useRef<string>(initialSessionId ?? createId());
+  const sessionIdRef = useRef<string>(initialSessionId ?? sessionId);
   const activePersonalityRef = useRef<PersonalityId | null>(null);
+
+  useEffect(() => {
+    if (!initialSessionId || initialSessionId === sessionIdRef.current) return;
+    sessionIdRef.current = initialSessionId;
+    setSessionIdState(initialSessionId);
+    setMessages([]);
+    setActiveTools([]);
+    setLastCompletedTool(null);
+    setIsStreaming(false);
+  }, [initialSessionId]);
 
   useEffect(() => {
     const ws = new WebSocket(`${WS_URL}/ws/chat`);
@@ -359,6 +387,7 @@ export function useJarvisChat(initialSessionId?: string) {
         JSON.stringify({
           message: outgoingText,
           session_id: sessionIdRef.current,
+          user_id: "default",
           personality_id: activePersonalityRef.current,
         })
       );
@@ -366,7 +395,28 @@ export function useJarvisChat(initialSessionId?: string) {
     [addLocalAssistantMessage, setPersonality]
   );
 
+  const setSessionId = useCallback((nextSessionId: string, nextMessages: StoredMessage[] = []) => {
+    sessionIdRef.current = nextSessionId;
+    setSessionIdState(nextSessionId);
+    streamingIdRef.current = null;
+    setIsStreaming(false);
+    setActiveTools([]);
+    setLastCompletedTool(null);
+    setError(null);
+    setMessages(
+      nextMessages
+        .filter((message) => message.role === "user" || message.role === "assistant")
+        .map((message) => ({
+          id: message.id,
+          role: message.role as "user" | "assistant",
+          content: message.content,
+        }))
+    );
+  }, []);
+
   return {
+    sessionId,
+    setSessionId,
     messages,
     sendMessage,
     activePersonality,

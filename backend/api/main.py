@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api.routers import calendar, chat, knowledge, notes, todos
+from backend.api.routers import calendar, chat, knowledge, notes, threads, todos, voice
 from backend.config import settings
 
 
@@ -33,6 +33,8 @@ app.add_middleware(
 )
 
 app.include_router(chat.router, tags=["chat"])
+app.include_router(voice.router, tags=["voice"])
+app.include_router(threads.router, prefix="/threads", tags=["threads"])
 app.include_router(notes.router, prefix="/notes", tags=["notes"])
 app.include_router(todos.router, prefix="/todos", tags=["todos"])
 app.include_router(calendar.router, prefix="/calendar", tags=["calendar"])

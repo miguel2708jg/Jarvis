@@ -13,12 +13,18 @@ def isolated_stores(monkeypatch, tmp_path):
     from backend.storage.sqlite_store import SQLiteStore
     from backend.config import settings
     import backend.services.calendar_service as calendar_svc
+    import backend.services.message_service as message_svc
     import backend.services.notes_service as notes_svc
+    import backend.services.thread_memory_service as memory_svc
+    import backend.services.thread_service as thread_svc
     import backend.services.todos_service as todos_svc
 
     monkeypatch.setattr(settings, "database_path", str(tmp_path / "jarvis.db"))
     calendar_svc._store = SQLiteStore("calendar_events", calendar_svc.CALENDAR_SCHEMA)
+    message_svc._store = SQLiteStore("messages", message_svc.MESSAGES_SCHEMA)
     notes_svc._store = JsonStore("notes", data_dir=str(tmp_path))
+    memory_svc._store = SQLiteStore("thread_memory", memory_svc.THREAD_MEMORY_SCHEMA)
+    thread_svc._store = SQLiteStore("threads", thread_svc.THREADS_SCHEMA)
     todos_svc._store = JsonStore("todos", data_dir=str(tmp_path))
 
 
@@ -50,6 +56,33 @@ async def test_email_routes_are_not_mounted(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         r = await client.get("/emails")
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_threads_crud_and_messages(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.post("/threads", json={"title": "Planning"})
+        assert r.status_code == 201
+        thread_id = r.json()["id"]
+
+        r = await client.put(f"/threads/{thread_id}", json={"title": "Updated planning"})
+        assert r.status_code == 200
+        assert r.json()["title"] == "Updated planning"
+
+        r = await client.post("/chat", json={"message": "Hello", "session_id": thread_id})
+        assert r.status_code == 200
+
+        r = await client.get(f"/threads/{thread_id}/messages")
+        assert r.status_code == 200
+        messages = r.json()
+        assert [message["role"] for message in messages] == ["user", "assistant"]
+        assert messages[0]["content"] == "Hello"
+        assert messages[1]["content"] == "Hello from Jarvis!"
+
+        r = await client.delete(f"/threads/{thread_id}")
+        assert r.status_code == 204
+        r = await client.get(f"/threads/{thread_id}")
+        assert r.status_code == 404
 
 
 def test_email_tools_are_not_registered():

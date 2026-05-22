@@ -62,6 +62,37 @@ def list_todos(show_completed: bool = False) -> list[dict]:
 
 
 @mcp.tool()
+def get_todo(todo_id: str) -> dict | None:
+    """Get a specific to-do item by its ID."""
+    return todos_service.get_todo(todo_id)
+
+
+@mcp.tool()
+def update_todo(
+    todo_id: str,
+    text: str | None = None,
+    priority: Literal["low", "medium", "high"] | None = None,
+    due_date: str | None = None,
+    completed: bool | None = None,
+    clear_due_date: bool = False,
+) -> dict | None:
+    """Update a to-do item's text, priority, due date, or completed status."""
+    resolved_due_date: str | None | object = todos_service._UNSET
+    if due_date is not None:
+        resolved_due_date = due_date
+    elif clear_due_date:
+        resolved_due_date = None
+
+    return todos_service.update_todo(
+        todo_id,
+        text=text,
+        priority=priority,
+        due_date=resolved_due_date,
+        completed=completed,
+    )
+
+
+@mcp.tool()
 def complete_todo(todo_id: str) -> dict | None:
     """Mark a to-do item as completed."""
     return todos_service.complete_todo(todo_id)

@@ -1,6 +1,10 @@
 """REST endpoints for the knowledge vault."""
+import io
+import mimetypes
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
+from starlette.responses import StreamingResponse
 
 from backend.api.errors import llm_unavailable_message
 from backend.models.knowledge import (
@@ -11,6 +15,7 @@ from backend.models.knowledge import (
     KnowledgeStatus,
 )
 from backend.services import knowledge_service
+from backend.storage.object_store import ObjectStorageError
 
 router = APIRouter()
 
@@ -42,6 +47,23 @@ def get_knowledge_page(path: str):
 @router.get("/sources", response_model=list[KnowledgeSource])
 def list_knowledge_sources():
     return [source.model_dump(by_alias=True) for source in knowledge_service.list_sources()]
+
+
+@router.get("/sources/{source_id}/raw")
+def get_knowledge_source_raw(source_id: str):
+    try:
+        source, data = knowledge_service.read_source_raw(source_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Knowledge source raw file not found: {source_id}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ObjectStorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    filename = source.original_filename or f"{source.source_id}.md"
+    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(io.BytesIO(data), media_type=media_type, headers=headers)
 
 
 @router.post("/ingest/note", response_model=KnowledgeIngestResult)

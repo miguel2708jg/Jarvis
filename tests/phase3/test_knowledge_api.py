@@ -16,6 +16,7 @@ def app(monkeypatch, tmp_path):
         str(tmp_path / "knowledge_vault"),
         raising=False,
     )
+    monkeypatch.setattr(knowledge_service.settings, "object_storage_provider", "local", raising=False)
     monkeypatch.setattr(
         knowledge_service.notes_service,
         "get_note",
@@ -85,7 +86,13 @@ async def test_ingest_file_and_lint(app, monkeypatch, tmp_path):
         files = {"file": ("memo.txt", b"hello", "text/plain")}
         ingest = await client.post("/knowledge/ingest/file", files=files)
         assert ingest.status_code == 200
-        assert ingest.json()["operation"] == "ingest_file"
+        payload = ingest.json()
+        assert payload["operation"] == "ingest_file"
+        source_id = payload["source"]["source_id"]
+
+        raw = await client.get(f"/knowledge/sources/{source_id}/raw")
+        assert raw.status_code == 200
+        assert raw.content == b"hello"
 
         lint = await client.post("/knowledge/lint", json={})
         assert lint.status_code == 200
@@ -97,3 +104,10 @@ async def test_ingest_file_and_lint(app, monkeypatch, tmp_path):
 
         vault = Path(knowledge_service.settings.knowledge_vault_path)
         assert (vault / "wiki" / "index.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_raw_source_download_missing_source_returns_404(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/knowledge/sources/missing/raw")
+        assert response.status_code == 404

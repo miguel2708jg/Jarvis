@@ -14,6 +14,8 @@ pydantic-settings>=2.5.0
 PyYAML>=6.0.1
 pypdf>=5.0.0
 psycopg[binary]>=3.2.0
+boto3>=1.35.0
+botocore>=1.35.0
 
 # FastAPI + server
 fastapi>=0.115.0
@@ -21,6 +23,9 @@ uvicorn[standard]>=0.32.0
 websockets>=13.0
 python-multipart>=0.0.12
 httpx>=0.27.0
+groq>=1.2.0
+piper-tts>=1.4.2
+onnxruntime>=1.25.0
 
 # Google APIs (Gmail — Phase 2)
 google-auth>=2.35.0

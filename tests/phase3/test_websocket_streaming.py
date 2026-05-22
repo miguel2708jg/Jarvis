@@ -9,6 +9,20 @@ from unittest.mock import MagicMock
 from fastapi import WebSocketDisconnect
 
 
+@pytest.fixture(autouse=True)
+def isolated_chat_stores(monkeypatch, tmp_path):
+    from backend.storage.sqlite_store import SQLiteStore
+    import backend.services.message_service as message_svc
+    import backend.services.thread_memory_service as memory_svc
+    import backend.services.thread_service as thread_svc
+    from backend.config import settings
+
+    monkeypatch.setattr(settings, "database_path", str(tmp_path / "jarvis.db"))
+    message_svc._store = SQLiteStore("messages", message_svc.MESSAGES_SCHEMA)
+    memory_svc._store = SQLiteStore("thread_memory", memory_svc.THREAD_MEMORY_SCHEMA)
+    thread_svc._store = SQLiteStore("threads", thread_svc.THREADS_SCHEMA)
+
+
 @pytest.fixture
 def mock_graph():
     async def mock_astream_events(state, version="v2"):
@@ -54,6 +68,13 @@ async def test_websocket_receives_tokens_and_done(mock_graph):
     assert websocket.accepted is True
     assert "token" in types, f"Expected 'token' frame, got: {types}"
     assert "done" in types, f"Expected 'done' frame, got: {types}"
+
+    from backend.services import message_service
+
+    stored = message_service.list_messages("test-session")
+    assert [message["role"] for message in stored] == ["user", "assistant"]
+    assert stored[0]["content"] == "Hello"
+    assert stored[1]["content"] == "Hello Jarvis"
 
 
 @pytest.mark.asyncio

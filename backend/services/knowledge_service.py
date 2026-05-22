@@ -23,6 +23,7 @@ from backend.models.knowledge import (
     KnowledgeStatus,
 )
 from backend.services import notes_service
+from backend.storage import object_store
 
 VAULT_STRUCTURE = [
     "raw/notes",
@@ -384,7 +385,9 @@ def _source_from_markdown(path: Path) -> KnowledgeSource | None:
     kind = str(metadata.get("source_kind", "")).strip()
     if not source_id or kind not in {"note", "file"}:
         return None
-    raw_path = path.resolve().relative_to(_vault_path().resolve()).as_posix()
+    raw_path = str(metadata.get("raw_path") or path.resolve().relative_to(_vault_path().resolve()).as_posix())
+    raw_storage = str(metadata.get("raw_storage") or "local")
+    raw_object_key = metadata.get("raw_object_key")
     extracted_path = metadata.get("extracted_path")
     return KnowledgeSource(
         source_id=source_id,
@@ -392,6 +395,8 @@ def _source_from_markdown(path: Path) -> KnowledgeSource | None:
         title=str(metadata.get("title", source_id)),
         created_at=str(metadata.get("created_at", "")),
         raw_path=raw_path,
+        raw_storage="s3" if raw_storage == "s3" else "local",
+        raw_object_key=str(raw_object_key) if raw_object_key else None,
         extracted_path=str(extracted_path) if extracted_path else None,
         note_id=str(metadata.get("note_id")) if metadata.get("note_id") else None,
         original_filename=str(metadata.get("original_filename")) if metadata.get("original_filename") else None,
@@ -416,6 +421,20 @@ def list_sources() -> list[KnowledgeSource]:
     return sources
 
 
+def get_source(source_id: str) -> KnowledgeSource:
+    normalized = source_id.strip()
+    for source in list_sources():
+        if source.source_id == normalized:
+            return source
+    raise FileNotFoundError(source_id)
+
+
+def read_source_raw(source_id: str) -> tuple[KnowledgeSource, bytes]:
+    source = get_source(source_id)
+    key = source.raw_object_key or source.raw_path
+    return source, object_store.get_raw_upload(_vault_path(), source.raw_storage, key)
+
+
 def get_status() -> KnowledgeStatus:
     ensure_vault_initialized()
     return KnowledgeStatus(
@@ -435,6 +454,10 @@ def _source_page_markdown(source: KnowledgeSource) -> str:
         "",
         f"- Raw: `{rel_raw}`",
     ]
+    if source.raw_storage != "local":
+        body.append(f"- Raw storage: `{source.raw_storage}`")
+    if source.raw_object_key:
+        body.append(f"- Raw object key: `{source.raw_object_key}`")
     if rel_extracted:
         body.append(f"- Extracted: `{rel_extracted}`")
     if source.note_id:
@@ -450,6 +473,11 @@ def _source_page_markdown(source: KnowledgeSource) -> str:
             "source_ids": [source.source_id],
             "tags": ["source", source.kind],
             "aliases": [source.source_id],
+            "raw_path": source.raw_path,
+            "raw_storage": source.raw_storage,
+            "raw_object_key": source.raw_object_key,
+            "extracted_path": source.extracted_path,
+            "original_filename": source.original_filename,
         },
         "\n".join(body),
     )
@@ -485,6 +513,8 @@ def _snapshot_note(note_id: str) -> tuple[KnowledgeSource, str]:
         title=title,
         created_at=_iso_now(),
         raw_path=path.resolve().relative_to(_vault_path().resolve()).as_posix(),
+        raw_storage="local",
+        raw_object_key=None,
         extracted_path=None,
         note_id=note_id,
     )
@@ -508,10 +538,7 @@ def ingest_file_bytes(filename: str, data: bytes) -> tuple[KnowledgeSource, str]
         raise ValueError("Unsupported file type. Only .md, .txt, and .pdf are allowed.")
 
     source_id = f"file-{_utcnow().strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:8]}"
-    upload_name = f"{source_id}{suffix}"
-    upload_path = _vault_path() / "raw" / "uploads" / upload_name
-    upload_path.parent.mkdir(parents=True, exist_ok=True)
-    upload_path.write_bytes(data)
+    stored_raw = object_store.put_raw_upload(_vault_path(), source_id, suffix, data)
 
     if suffix == ".pdf":
         extracted_text = _extract_pdf_text(data)
@@ -530,6 +557,9 @@ def ingest_file_bytes(filename: str, data: bytes) -> tuple[KnowledgeSource, str]
             "title": filename,
             "original_filename": filename,
             "created_at": _iso_now(),
+            "raw_path": stored_raw.key,
+            "raw_storage": stored_raw.provider,
+            "raw_object_key": stored_raw.key,
             "extracted_path": extracted_path.resolve().relative_to(_vault_path().resolve()).as_posix(),
         },
         extracted_text,
@@ -541,7 +571,9 @@ def ingest_file_bytes(filename: str, data: bytes) -> tuple[KnowledgeSource, str]
         kind="file",
         title=filename,
         created_at=_iso_now(),
-        raw_path=upload_path.resolve().relative_to(_vault_path().resolve()).as_posix(),
+        raw_path=stored_raw.key,
+        raw_storage=stored_raw.provider,
+        raw_object_key=stored_raw.key,
         extracted_path=extracted_path.resolve().relative_to(_vault_path().resolve()).as_posix(),
         original_filename=filename,
     )

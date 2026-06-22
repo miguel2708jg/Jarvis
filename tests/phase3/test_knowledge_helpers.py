@@ -1,8 +1,9 @@
 """Phase 3: Unit coverage for knowledge vault helpers."""
 
-import sys
-import types
+import io
+import zipfile
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 import pytest
 
@@ -12,12 +13,35 @@ def _service(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         knowledge_service.settings,
+        "database_path",
+        str(tmp_path / "jarvis.db"),
+        raising=False,
+    )
+    monkeypatch.setattr(knowledge_service.settings, "database_url", None, raising=False)
+    monkeypatch.setattr(
+        knowledge_service.settings,
         "knowledge_vault_path",
         str(tmp_path / "knowledge_vault"),
         raising=False,
     )
-    monkeypatch.setattr(knowledge_service.settings, "object_storage_provider", "local", raising=False)
     return knowledge_service
+
+
+def _docx_bytes(*paragraphs: str) -> bytes:
+    body = "".join(
+        f"<w:p><w:r><w:t>{escape(paragraph)}</w:t></w:r></w:p>"
+        for paragraph in paragraphs
+    )
+    document_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f"<w:body>{body}</w:body>"
+        "</w:document>"
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("word/document.xml", document_xml)
+    return buffer.getvalue()
 
 
 def test_frontmatter_roundtrip(monkeypatch, tmp_path):
@@ -83,8 +107,6 @@ def test_file_ingest_creates_upload_and_sidecar(monkeypatch, tmp_path):
     knowledge_service = _service(monkeypatch, tmp_path)
     source, extracted = knowledge_service.ingest_file_bytes("memo.txt", b"alpha beta")
     assert source.kind == "file"
-    assert source.raw_storage == "local"
-    assert source.raw_object_key == source.raw_path
     assert "alpha beta" in extracted
     vault = Path(knowledge_service.settings.knowledge_vault_path)
     assert (vault / source.raw_path).exists()
@@ -92,71 +114,37 @@ def test_file_ingest_creates_upload_and_sidecar(monkeypatch, tmp_path):
     assert (vault / source.extracted_path).exists()
 
 
-def test_file_ingest_s3_uses_railway_bucket_credentials(monkeypatch, tmp_path):
+def test_docx_file_ingest_extracts_upload_and_sidecar(monkeypatch, tmp_path):
     knowledge_service = _service(monkeypatch, tmp_path)
-    from backend.storage import object_store
-
-    calls = {}
-
-    class FakeConfig:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    class FakeClient:
-        def put_object(self, **kwargs):
-            calls["put_object"] = kwargs
-
-    def fake_client(*args, **kwargs):
-        calls["client"] = {"args": args, "kwargs": kwargs}
-        return FakeClient()
-
-    fake_boto3 = types.ModuleType("boto3")
-    fake_boto3.client = fake_client
-    fake_botocore = types.ModuleType("botocore")
-    fake_botocore.__path__ = []
-    fake_config_module = types.ModuleType("botocore.config")
-    fake_config_module.Config = FakeConfig
-    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
-    monkeypatch.setitem(sys.modules, "botocore", types.SimpleNamespace())
-    monkeypatch.setitem(sys.modules, "botocore.config", fake_config_module)
-    monkeypatch.setattr(knowledge_service.settings, "object_storage_provider", "s3", raising=False)
-    monkeypatch.setattr(knowledge_service.settings, "s3_bucket", "jarvis-test-bucket", raising=False)
-    monkeypatch.setattr(knowledge_service.settings, "s3_endpoint", "https://storage.railway.app", raising=False)
-    monkeypatch.setattr(knowledge_service.settings, "s3_region", "auto", raising=False)
-    monkeypatch.setattr(knowledge_service.settings, "s3_access_key_id", "railway-access", raising=False)
-    monkeypatch.setattr(knowledge_service.settings, "s3_secret_access_key", "railway-secret", raising=False)
-
-    source, extracted = knowledge_service.ingest_file_bytes("memo.txt", b"alpha beta")
-
-    assert "alpha beta" in extracted
-    assert source.raw_storage == "s3"
-    assert source.raw_path == source.raw_object_key
-    assert source.raw_object_key is not None
-    assert source.raw_object_key.startswith("raw/uploads/file-")
-    assert calls["put_object"] == {
-        "Bucket": "jarvis-test-bucket",
-        "Key": source.raw_object_key,
-        "Body": b"alpha beta",
-    }
-    assert calls["client"]["args"] == ("s3",)
-    assert calls["client"]["kwargs"]["endpoint_url"] == "https://storage.railway.app"
-    assert calls["client"]["kwargs"]["region_name"] == "auto"
-    assert calls["client"]["kwargs"]["aws_access_key_id"] == "railway-access"
-    assert calls["client"]["kwargs"]["aws_secret_access_key"] == "railway-secret"
-    assert calls["client"]["kwargs"]["config"].kwargs == {"s3": {"addressing_style": "virtual"}}
+    source, extracted = knowledge_service.ingest_file_bytes(
+        "memo.docx",
+        _docx_bytes("Alpha launch", "Beta plan"),
+    )
     vault = Path(knowledge_service.settings.knowledge_vault_path)
-    assert source.extracted_path is not None
-    assert (vault / source.extracted_path).exists()
-    assert not (vault / source.raw_path).exists()
+    raw_path = vault / source.raw_path
+    extracted_path = vault / str(source.extracted_path)
+
+    assert source.kind == "file"
+    assert source.original_filename == "memo.docx"
+    assert raw_path.suffix == ".docx"
+    assert raw_path.exists()
+    assert extracted_path.exists()
+    assert "Alpha launch" in extracted
+    assert "Beta plan" in extracted_path.read_text(encoding="utf-8")
+
+
+def test_docx_file_ingest_rejects_invalid_docx(monkeypatch, tmp_path):
+    knowledge_service = _service(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="Invalid .docx"):
+        knowledge_service.ingest_file_bytes("broken.docx", b"not a zip")
 
 
 def test_rebuild_index_is_deterministic(monkeypatch, tmp_path):
     knowledge_service = _service(monkeypatch, tmp_path)
     knowledge_service.ensure_vault_initialized()
 
-    page = knowledge_service._wiki_root() / "entities" / "alpha.md"
-    knowledge_service._atomic_write(
-        page,
+    knowledge_service._upsert_page_from_markdown(
+        "entities/alpha.md",
         knowledge_service._frontmatter_to_text(
             {
                 "type": "entity",
@@ -174,3 +162,99 @@ def test_rebuild_index_is_deterministic(monkeypatch, tmp_path):
     idx1 = knowledge_service.rebuild_index()
     idx2 = knowledge_service.rebuild_index()
     assert idx1 == idx2
+
+
+def test_import_vault_to_db_is_idempotent(monkeypatch, tmp_path):
+    knowledge_service = _service(monkeypatch, tmp_path)
+    vault = tmp_path / "legacy_vault"
+    page = vault / "wiki" / "entities" / "alpha.md"
+    page.parent.mkdir(parents=True)
+    page.write_text(
+        knowledge_service._frontmatter_to_text(
+            {
+                "type": "entity",
+                "title": "Alpha",
+                "summary": "Imported page",
+                "updated_at": "2026-04-15T00:00:00+00:00",
+                "source_ids": ["source-1"],
+                "tags": ["import"],
+                "aliases": ["A"],
+            },
+            "Body with [[Beta]].",
+        ),
+        encoding="utf-8",
+    )
+    raw = vault / "raw" / "notes" / "source-1.md"
+    raw.parent.mkdir(parents=True)
+    raw.write_text(
+        knowledge_service._frontmatter_to_text(
+            {
+                "source_id": "source-1",
+                "source_kind": "note",
+                "note_id": "note-1",
+                "title": "Source One",
+                "created_at": "2026-04-15T00:00:00+00:00",
+            },
+            "Original note text",
+        ),
+        encoding="utf-8",
+    )
+
+    first = knowledge_service.import_vault_to_db(vault)
+    second = knowledge_service.import_vault_to_db(vault)
+
+    assert first["pages"] == 1
+    assert second["pages"] == 1
+    assert len([page for page in knowledge_service.list_pages() if page.path == "entities/alpha.md"]) == 1
+    assert len([source for source in knowledge_service.list_sources() if source.source_id == "source-1"]) == 1
+
+
+def test_get_page_uses_db_when_mirror_file_is_missing(monkeypatch, tmp_path):
+    knowledge_service = _service(monkeypatch, tmp_path)
+    knowledge_service._upsert_page_from_markdown(
+        "concepts/db-only.md",
+        knowledge_service._frontmatter_to_text(
+            {
+                "type": "concept",
+                "title": "DB Only",
+                "summary": "Stored in the database",
+                "updated_at": "2026-04-15T00:00:00+00:00",
+                "source_ids": [],
+                "tags": ["db"],
+                "aliases": [],
+            },
+            "Canonical body.",
+        ),
+    )
+
+    page_path = tmp_path / "knowledge_vault" / "wiki" / "concepts" / "db-only.md"
+    assert not page_path.exists()
+
+    detail = knowledge_service.get_page("concepts/db-only.md")
+
+    assert detail.title == "DB Only"
+    assert detail.body == "Canonical body."
+    assert page_path.exists()
+
+
+def test_wikilinks_are_persisted_as_structured_links(monkeypatch, tmp_path):
+    knowledge_service = _service(monkeypatch, tmp_path)
+    knowledge_service._upsert_page_from_markdown(
+        "concepts/linked.md",
+        knowledge_service._frontmatter_to_text(
+            {
+                "type": "concept",
+                "title": "Linked",
+                "summary": "Has links",
+                "updated_at": "2026-04-15T00:00:00+00:00",
+                "source_ids": [],
+                "tags": [],
+                "aliases": [],
+            },
+            "See [[Alpha]] and [[Beta]] and [[alpha]].",
+        ),
+    )
+
+    links = [dict(row) for row in knowledge_service._links().all()]
+
+    assert [link["target"] for link in links] == ["Alpha", "Beta"]

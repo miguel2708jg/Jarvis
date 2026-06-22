@@ -25,6 +25,10 @@ TABLE_ORDER = [
     "messages",
     "thread_memory",
     "calendar_events",
+    "knowledge_pages",
+    "knowledge_sources",
+    "knowledge_links",
+    "knowledge_log",
 ]
 
 

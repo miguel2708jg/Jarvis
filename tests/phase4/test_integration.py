@@ -9,15 +9,24 @@ Run: pytest tests/phase4/test_integration.py -m integration -v
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+AUTH_HEADERS = {
+    "x-jarvis-internal-auth": "test-internal-token",
+    "x-jarvis-user-email": "majg2708@gmail.com",
+}
+
 
 @pytest.fixture
 def app_with_real_graph(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     from backend.storage.json_store import JsonStore
+    from backend.config import settings
     import backend.api.dependencies as deps
     import backend.services.notes_service as notes_svc
     import backend.services.todos_service as todos_svc
 
+    monkeypatch.setattr(settings, "auth_allowed_emails", "majg2708@gmail.com")
+    monkeypatch.setattr(settings, "backend_internal_auth_token", "test-internal-token")
+    monkeypatch.setattr(settings, "backend_auth_token_secret", "test-ws-secret")
     notes_svc._store = JsonStore("notes", data_dir=str(tmp_path))
     todos_svc._store = JsonStore("todos", data_dir=str(tmp_path))
 
@@ -38,7 +47,7 @@ def app_with_real_graph(tmp_path, monkeypatch):
 @pytest.mark.integration
 async def test_chat_creates_note_visible_via_rest(app_with_real_graph):
     """Send a chat message asking to create a note; verify it appears in GET /notes."""
-    async with AsyncClient(transport=ASGITransport(app=app_with_real_graph), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app_with_real_graph), base_url="http://test", headers=AUTH_HEADERS) as client:
         r = await client.post(
             "/chat",
             json={
@@ -59,7 +68,7 @@ async def test_chat_creates_note_visible_via_rest(app_with_real_graph):
 @pytest.mark.integration
 async def test_chat_creates_todo_visible_via_rest(app_with_real_graph):
     """Send a chat message asking to create a todo; verify it appears in GET /todos."""
-    async with AsyncClient(transport=ASGITransport(app=app_with_real_graph), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app_with_real_graph), base_url="http://test", headers=AUTH_HEADERS) as client:
         r = await client.post(
             "/chat",
             json={

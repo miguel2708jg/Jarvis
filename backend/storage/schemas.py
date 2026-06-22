@@ -66,6 +66,60 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 )
 """
 
+KNOWLEDGE_PAGES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS knowledge_pages (
+    id TEXT PRIMARY KEY,
+    path TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT,
+    body TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    source_ids TEXT,
+    tags TEXT,
+    aliases TEXT,
+    metadata TEXT,
+    created_at TEXT NOT NULL
+)
+"""
+
+KNOWLEDGE_SOURCES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS knowledge_sources (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    raw_path TEXT NOT NULL,
+    extracted_path TEXT,
+    note_id TEXT,
+    original_filename TEXT,
+    content_text TEXT,
+    extracted_text TEXT,
+    raw_bytes BYTEA,
+    metadata TEXT
+)
+"""
+
+KNOWLEDGE_LINKS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS knowledge_links (
+    id TEXT PRIMARY KEY,
+    from_path TEXT NOT NULL,
+    target TEXT NOT NULL,
+    created_at TEXT NOT NULL
+)
+"""
+
+KNOWLEDGE_LOG_SCHEMA = """
+CREATE TABLE IF NOT EXISTS knowledge_log (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    target TEXT NOT NULL,
+    entry TEXT NOT NULL
+)
+"""
+
 TABLE_SCHEMAS = {
     "todos": TODOS_SCHEMA,
     "notes": NOTES_SCHEMA,
@@ -73,4 +127,8 @@ TABLE_SCHEMAS = {
     "messages": MESSAGES_SCHEMA,
     "thread_memory": THREAD_MEMORY_SCHEMA,
     "calendar_events": CALENDAR_SCHEMA,
+    "knowledge_pages": KNOWLEDGE_PAGES_SCHEMA,
+    "knowledge_sources": KNOWLEDGE_SOURCES_SCHEMA,
+    "knowledge_links": KNOWLEDGE_LINKS_SCHEMA,
+    "knowledge_log": KNOWLEDGE_LOG_SCHEMA,
 }

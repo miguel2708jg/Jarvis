@@ -37,24 +37,9 @@ export interface CalendarEvent {
   created_at: string;
 }
 
-export interface Thread {
-  id: string;
-  title: string | null;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface StoredMessage {
-  id: string;
-  thread_id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  created_at: string;
-}
-
 export interface EmailMessage {
   message_id: string;
+  thread_id?: string;
   sender: string;
   recipient: string;
   subject: string;
@@ -65,18 +50,48 @@ export interface EmailMessage {
   is_read: boolean;
 }
 
+export interface EmailThread {
+  thread_id: string;
+  messages: EmailMessage[];
+}
+
+export interface EmailDraft {
+  id?: string;
+  message?: EmailMessage;
+  subject?: string;
+  to?: string[];
+  [key: string]: unknown;
+}
+
+export interface EmailLabel {
+  id?: string;
+  labelId?: string;
+  name?: string;
+  displayName?: string;
+  type?: string;
+  [key: string]: unknown;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
+  created_at?: string | null;
 }
 
-export interface VoiceResponse {
-  transcript: string;
-  response_text: string;
-  audio_base64: string;
-  session_id: string;
+export interface ChatThread {
+  id: string;
+  title: string;
+  user_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface ChatAttachment {
+  source: KnowledgeSource;
+  extracted_preview: string;
 }
 
 export interface StreamChunk {
@@ -108,8 +123,6 @@ export interface KnowledgeSource {
   title: string;
   created_at: string;
   raw_path: string;
-  raw_storage: "local" | "s3";
-  raw_object_key: string | null;
   extracted_path: string | null;
   note_id: string | null;
   original_filename: string | null;

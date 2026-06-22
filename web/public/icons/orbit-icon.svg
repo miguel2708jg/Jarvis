@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Orbit">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#20242c" />
+      <stop offset="58%" stop-color="#0d0f14" />
+      <stop offset="100%" stop-color="#050608" />
+    </linearGradient>
+    <linearGradient id="orbit" x1="76" y1="322" x2="436" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#442454" />
+      <stop offset="52%" stop-color="#ef82ae" />
+      <stop offset="100%" stop-color="#f7a0c0" />
+    </linearGradient>
+    <linearGradient id="ring" x1="172" y1="121" x2="337" y2="389" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff9fc6" />
+      <stop offset="48%" stop-color="#ef80ab" />
+      <stop offset="100%" stop-color="#b64b81" />
+    </linearGradient>
+    <radialGradient id="moon" cx="34%" cy="24%" r="78%">
+      <stop offset="0%" stop-color="#fff0f7" />
+      <stop offset="42%" stop-color="#f39cc0" />
+      <stop offset="100%" stop-color="#b94a82" />
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000000" flood-opacity="0.42" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#background)" />
+  <ellipse cx="145" cy="70" rx="235" ry="180" fill="#5b4869" opacity="0.18" />
+  <ellipse cx="335" cy="216" rx="125" ry="112" fill="#f27cac" opacity="0.18" />
+  <g filter="url(#shadow)">
+    <circle cx="262" cy="256" r="100" fill="none" stroke="url(#ring)" stroke-width="32" />
+    <ellipse cx="256" cy="256" rx="178" ry="48" fill="none" stroke="url(#orbit)" stroke-width="16" transform="rotate(-19 256 256)" />
+    <circle cx="158" cy="220" r="29" fill="url(#moon)" />
+    <circle cx="148" cy="209" r="9" fill="#fff7fb" opacity="0.7" />
+  </g>
+</svg>

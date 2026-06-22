@@ -6,7 +6,7 @@ A personal assistant built with LangGraph + Ollama (Python) and React Native (Ex
 
 ```bash
 # 1. Set up environment
-cp .env.example .env          # configure your Ollama endpoint/model
+cp .env.example .env          # configure Ollama, auth, and optional integrations
 source venv/bin/activate
 
 # 2. Start Ollama and pull a model that supports tool calling
@@ -25,9 +25,65 @@ open http://localhost:8000/docs
 
 If you are using a remote Ollama-compatible endpoint, set `OLLAMA_BASE_URL`, `OLLAMA_MODEL_ID`, and optionally `OLLAMA_API_KEY` in `.env`. Use the host root, for example `https://ollama.com`, not the `/api` path.
 
-Notes, todos, calendar events, thread memory, and the knowledge vault use local project storage. Calendar events are stored in SQLite and do not require Google Calendar credentials.
+Notes, todos, thread memory, and the knowledge brain use Neon/Postgres through `DATABASE_URL`. The knowledge wiki is stored in the database and exported to `KNOWLEDGE_VAULT_PATH` as an Obsidian-compatible markdown mirror. Calendar events are managed through Google Calendar, and Drive access is available through agent tools.
 
-Voice input/output is optional. For Groq STT + Piper TTS, set `STT_PROVIDER=groq`, `GROQ_API_KEY`, `GROQ_STT_MODEL`, `TTS_PROVIDER=piper`, and `TTS_VOICE`; Piper model files are resolved from `/tmp/piper-voices/{TTS_VOICE}.onnx` unless `PIPER_MODEL_PATH` is set.
+## Google Workspace
+
+Set `GOOGLE_CREDENTIALS_FILE=credentials.json` and `GOOGLE_TOKEN_FILE=token.json` for Gmail, Calendar, and Drive. The shared OAuth token must include `gmail.modify`, `calendar.events`, `drive.readonly`, and `drive.file`. If an existing token only has Gmail scope, delete `GOOGLE_TOKEN_FILE`/`token.json`, restart the backend, and approve the expanded scopes.
+
+## Storage / Neon
+
+Normal runtime requires `DATABASE_URL` to be set to the Neon connection URL. `DATABASE_PATH=Data/jarvis.db` is kept only as a legacy backup/recovery source; SQLite fallback is disabled unless `ALLOW_SQLITE_FALLBACK=true` is explicitly set.
+
+Useful maintenance commands:
+
+```bash
+# Idempotently upsert legacy SQLite rows into Neon
+python scripts/migrate_sqlite_to_postgres.py --source Data/jarvis.db
+
+# Read-only check that every SQLite row exists in Neon
+python scripts/verify_neon_migration.py --source Data/jarvis.db
+```
+
+## Auth configuration
+
+Most backend routes require trusted web-to-backend auth headers. For local development, set these values in `.env` from `.env.example`:
+
+```env
+AUTH_ALLOWED_EMAILS=your_email@example.com
+BACKEND_INTERNAL_AUTH_TOKEN=replace_with_random_internal_token
+BACKEND_AUTH_TOKEN_SECRET=replace_with_random_ws_signing_secret
+```
+
+Use the same `BACKEND_INTERNAL_AUTH_TOKEN` and `BACKEND_AUTH_TOKEN_SECRET` values for the Next.js web app and the FastAPI backend. `/health` is the only unauthenticated backend route.
+
+## Railway web deployment
+
+`jarvis-web` is a Next.js app in the `web/` directory. In the Railway service for the web app, set:
+
+```text
+Root Directory: web
+Build Command: npm run build
+Start Command: npm run start -- -H 0.0.0.0 -p $PORT
+Healthcheck Path: /
+```
+
+Set these variables on the `jarvis-web` service:
+
+```env
+BACKEND_API_URL=https://your-jarvis-backend.up.railway.app
+NEXT_PUBLIC_API_URL=/api
+NEXT_PUBLIC_WS_URL=wss://your-jarvis-backend.up.railway.app
+AUTH_ALLOWED_EMAILS=your_email@example.com
+AUTH_GOOGLE_ID=your_google_oauth_client_id
+AUTH_GOOGLE_SECRET=your_google_oauth_client_secret
+NEXTAUTH_SECRET=replace_with_32_plus_random_chars
+NEXTAUTH_URL=https://your-jarvis-web.up.railway.app
+BACKEND_INTERNAL_AUTH_TOKEN=same_value_as_backend
+BACKEND_AUTH_TOKEN_SECRET=same_value_as_backend
+```
+
+Keep `NEXT_PUBLIC_API_URL=/api` so browser REST calls go through the Next.js proxy, which adds the trusted backend auth headers. `NEXT_PUBLIC_WS_URL` should point directly to the backend domain with `wss://` because WebSockets are authenticated with a short-lived signed token.
 
 ## Ollama Cloud models
 
@@ -93,8 +149,8 @@ backend/          Python backend (FastAPI + LangGraph)
   agent/          LangGraph graph, state, nodes, prompts
   tools/          @tool functions + registry
   models/         Pydantic models
-  services/       Domain logic (notes, todos, knowledge vault, etc.)
-  storage/        SQLite + legacy JSON compatibility
+  services/       Domain logic (notes, todos, database-backed knowledge, etc.)
+  storage/        Neon/Postgres store + explicit SQLite recovery fallback
   api/            FastAPI app, routers, dependencies
 
 mobile/           React Native (Expo) app

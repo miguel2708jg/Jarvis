@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AliasChoices, Field
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -16,40 +16,36 @@ class Settings(BaseSettings):
     data_dir: str = Field(default="Data", alias="DATA_DIR")
     database_path: str | None = Field(default=None, alias="DATABASE_PATH")
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
+    allow_sqlite_fallback: bool = Field(default=False, alias="ALLOW_SQLITE_FALLBACK")
     knowledge_vault_path: str = Field(default="Data/knowledge_vault", alias="KNOWLEDGE_VAULT_PATH")
-    object_storage_provider: str = Field(default="local", alias="OBJECT_STORAGE_PROVIDER")
-    s3_bucket: str | None = Field(default=None, validation_alias=AliasChoices("S3_BUCKET", "BUCKET"))
-    s3_endpoint: str | None = Field(default=None, validation_alias=AliasChoices("S3_ENDPOINT", "ENDPOINT"))
-    s3_region: str = Field(default="auto", validation_alias=AliasChoices("S3_REGION", "REGION"))
-    s3_access_key_id: str | None = Field(default=None, validation_alias=AliasChoices("S3_ACCESS_KEY_ID", "ACCESS_KEY_ID"))
-    s3_secret_access_key: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("S3_SECRET_ACCESS_KEY", "SECRET_ACCESS_KEY"),
-    )
     assistant_timezone: str | None = Field(default=None, alias="ASSISTANT_TIMEZONE")
 
-    # Voice I/O
-    stt_provider: str = Field(default="groq", alias="STT_PROVIDER")
-    tts_provider: str = Field(default="piper", alias="TTS_PROVIDER")
-    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
-    groq_stt_model: str = Field(default="whisper-large-v3", alias="GROQ_STT_MODEL")
-    groq_stt_language: str | None = Field(default=None, alias="GROQ_STT_LANGUAGE")
-    ffmpeg_path: str = Field(default="ffmpeg", alias="FFMPEG_PATH")
-    tts_voice: str = Field(default="en_US-lessac-medium", alias="TTS_VOICE")
-    piper_model_path: str | None = Field(default=None, alias="PIPER_MODEL_PATH")
-    piper_config_path: str | None = Field(default=None, alias="PIPER_CONFIG_PATH")
+    # Google Workspace OAuth
+    google_credentials_file: str | None = Field(default=None, alias="GOOGLE_CREDENTIALS_FILE")
+    google_token_file: str | None = Field(default=None, alias="GOOGLE_TOKEN_FILE")
+    google_allow_interactive_oauth: bool = Field(default=False, alias="GOOGLE_ALLOW_INTERACTIVE_OAUTH")
 
-    # Gmail (Phase 2)
+    # Gmail MCP (Google Workspace developer preview)
     gmail_credentials_file: str | None = Field(default=None, alias="GMAIL_CREDENTIALS_FILE")
     gmail_token_file: str | None = Field(default=None, alias="GMAIL_TOKEN_FILE")
+    gmail_mcp_endpoint: str = Field(
+        default="https://gmailmcp.googleapis.com/mcp/v1",
+        alias="GMAIL_MCP_ENDPOINT",
+    )
+    gmail_mcp_timeout_seconds: float = Field(default=30, alias="GMAIL_MCP_TIMEOUT_SECONDS")
 
-    # Legacy Google Calendar setting (unused; calendar events are local SQLite)
+    # Legacy Google Calendar setting
     gcal_token_file: str | None = Field(default=None, alias="GCAL_TOKEN_FILE")
 
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_port: int = Field(default=8000, alias="API_PORT")
     cors_origins: list[str] = Field(default=["*"], alias="CORS_ORIGINS")
+
+    # Auth
+    auth_allowed_emails: str = Field(default="majg2708@gmail.com", alias="AUTH_ALLOWED_EMAILS")
+    backend_internal_auth_token: str | None = Field(default=None, alias="BACKEND_INTERNAL_AUTH_TOKEN")
+    backend_auth_token_secret: str | None = Field(default=None, alias="BACKEND_AUTH_TOKEN_SECRET")
 
 
 settings = Settings()

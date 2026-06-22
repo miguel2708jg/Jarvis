@@ -5,8 +5,13 @@ import { apiClient, WS_URL } from "./api";
 import { COMMAND_TO_PERSONALITY_ID, getPersonality } from "./personalities";
 import type {
   CalendarEvent,
+  ChatAttachment,
   ChatMessage,
+  ChatThread,
+  EmailDraft,
+  EmailLabel,
   EmailMessage,
+  EmailThread,
   KnowledgeIngestResult,
   KnowledgePage,
   KnowledgePageDetail,
@@ -14,9 +19,7 @@ import type {
   KnowledgeStatus,
   Note,
   PersonalityId,
-  StoredMessage,
   StreamChunk,
-  Thread,
   Todo,
   ToolActivity,
 } from "./types";
@@ -32,6 +35,34 @@ function getErrorMessage(error: unknown): string {
   }
   if (error instanceof Error) return error.message;
   return "Unknown error";
+}
+
+function buildAttachmentContext(attachments: ChatAttachment[]): string {
+  if (!attachments.length) return "";
+
+  const details = attachments.map((attachment, index) => {
+    const source = attachment.source;
+    const preview = attachment.extracted_preview.trim();
+    return [
+      `Attachment ${index + 1}:`,
+      `- filename: ${source.original_filename ?? source.title}`,
+      `- source_id: ${source.source_id}`,
+      `- raw_path: ${source.raw_path}`,
+      source.extracted_path ? `- extracted_path: ${source.extracted_path}` : null,
+      "- Gmail draft attachment use: pass this source_id in attachment_source_ids when calling create_email_draft.",
+      preview ? `- extracted text preview:\n${preview.slice(0, 2500)}` : null,
+    ].filter(Boolean).join("\n");
+  });
+
+  return `\n\n[Chat attachments]\n${details.join("\n\n")}`;
+}
+
+async function getJarvisToken(): Promise<string> {
+  const response = await fetch("/api/auth/jarvis-token", { cache: "no-store" });
+  if (!response.ok) throw new Error("Authentication required");
+  const data = (await response.json()) as { token?: string };
+  if (!data.token) throw new Error("Authentication token missing");
+  return data.token;
 }
 
 function useCollection<T>(path: string) {
@@ -138,22 +169,146 @@ export function useCalendar() {
 }
 
 export function useEmails() {
-  return useCollection<EmailMessage>("/emails");
-}
+  const base = useCollection<EmailMessage>("/emails");
+  const [thread, setThread] = useState<EmailThread | null>(null);
+  const [drafts, setDrafts] = useState<EmailDraft[]>([]);
+  const [labels, setLabels] = useState<EmailLabel[]>([]);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-export function useThreads() {
-  const base = useCollection<Thread>("/threads");
-
-  const getMessages = useCallback(async (threadId: string): Promise<StoredMessage[] | null> => {
+  const search = useCallback(async (query: string, max = 10) => {
+    setActionError(null);
     try {
-      const { data } = await apiClient.get<StoredMessage[]>(`/threads/${threadId}/messages`);
+      const { data } = await apiClient.get<EmailMessage[]>("/emails/search", { params: { q: query, max } });
       return data;
-    } catch {
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
       return null;
     }
   }, []);
 
-  return { ...base, getMessages };
+  const getThread = useCallback(async (threadId: string) => {
+    setActionError(null);
+    try {
+      const { data } = await apiClient.get<EmailThread>(`/emails/threads/${encodeURIComponent(threadId)}`);
+      setThread(data);
+      return data;
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
+      return null;
+    }
+  }, []);
+
+  const listDrafts = useCallback(async (query?: string, max = 20) => {
+    setActionError(null);
+    try {
+      const { data } = await apiClient.get<{ drafts?: EmailDraft[] } | EmailDraft[]>("/emails/drafts", { params: { q: query || undefined, max } });
+      const nextDrafts = Array.isArray(data) ? data : data.drafts ?? [];
+      setDrafts(nextDrafts);
+      return nextDrafts;
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
+      return null;
+    }
+  }, []);
+
+  const createDraft = useCallback(
+    async (payload: { to: string[]; subject?: string; body?: string; cc?: string[]; bcc?: string[]; htmlBody?: string; replyToMessageId?: string }) => {
+      setActionError(null);
+      try {
+        const { data } = await apiClient.post<EmailDraft>("/emails/drafts", payload);
+        await listDrafts();
+        return data;
+      } catch (err: unknown) {
+        setActionError(getErrorMessage(err));
+        return null;
+      }
+    },
+    [listDrafts]
+  );
+
+  const listLabels = useCallback(async () => {
+    setActionError(null);
+    try {
+      const { data } = await apiClient.get<{ labels?: EmailLabel[] } | EmailLabel[]>("/emails/labels");
+      const nextLabels = Array.isArray(data) ? data : data.labels ?? [];
+      setLabels(nextLabels);
+      return nextLabels;
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
+      return null;
+    }
+  }, []);
+
+  const createLabel = useCallback(
+    async (displayName: string) => {
+      setActionError(null);
+      try {
+        const { data } = await apiClient.post<EmailLabel>("/emails/labels", { displayName });
+        await listLabels();
+        return data;
+      } catch (err: unknown) {
+        setActionError(getErrorMessage(err));
+        return null;
+      }
+    },
+    [listLabels]
+  );
+
+  const updateLabel = useCallback(
+    async (labelId: string, displayName: string) => {
+      setActionError(null);
+      try {
+        const { data } = await apiClient.put<EmailLabel>(`/emails/labels/${encodeURIComponent(labelId)}`, { displayName });
+        await listLabels();
+        return data;
+      } catch (err: unknown) {
+        setActionError(getErrorMessage(err));
+        return null;
+      }
+    },
+    [listLabels]
+  );
+
+  const applyLabelsToThread = useCallback(async (threadId: string, labelIds: string[]) => {
+    setActionError(null);
+    try {
+      await apiClient.post(`/emails/threads/${encodeURIComponent(threadId)}/labels`, { labelIds });
+      await base.refresh();
+      return true;
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
+      return false;
+    }
+  }, [base]);
+
+  const removeLabelsFromThread = useCallback(async (threadId: string, labelIds: string[]) => {
+    setActionError(null);
+    try {
+      await apiClient.post(`/emails/threads/${encodeURIComponent(threadId)}/labels/remove`, { labelIds });
+      await base.refresh();
+      return true;
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err));
+      return false;
+    }
+  }, [base]);
+
+  return {
+    ...base,
+    thread,
+    drafts,
+    labels,
+    actionError,
+    search,
+    getThread,
+    createDraft,
+    listDrafts,
+    listLabels,
+    createLabel,
+    updateLabel,
+    applyLabelsToThread,
+    removeLabelsFromThread,
+  };
 }
 
 export function useKnowledge() {
@@ -218,6 +373,7 @@ export function useKnowledge() {
         form.append("file", file);
         const { data } = await apiClient.post<KnowledgeIngestResult>("/knowledge/ingest/file", form, {
           headers: { "Content-Type": "multipart/form-data" },
+          timeout: 120000,
         });
         await refresh();
         return data;
@@ -244,9 +400,13 @@ export function useKnowledge() {
   return { status, pages, sources, loading, error, refresh, getPage, ingestNote, uploadFile, runLint };
 }
 
+const ACTIVE_CHAT_THREAD_KEY = "orbit.activeChatThreadId";
+
 export function useJarvisChat(initialSessionId?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sessionId, setSessionIdState] = useState<string>(initialSessionId ?? createId());
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(initialSessionId ?? null);
+  const [isLoadingThreads, setIsLoadingThreads] = useState(false);
   const [activePersonality, setActivePersonality] = useState<PersonalityId | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -255,22 +415,140 @@ export function useJarvisChat(initialSessionId?: string) {
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
-  const sessionIdRef = useRef<string>(initialSessionId ?? sessionId);
+  const sessionIdRef = useRef<string>(initialSessionId ?? createId());
   const activePersonalityRef = useRef<PersonalityId | null>(null);
+  const refreshThreadsRef = useRef<() => Promise<ChatThread[] | null>>(async () => null);
+
+  const loadMessages = useCallback(async (threadId: string): Promise<ChatMessage[] | null> => {
+    setError(null);
+    try {
+      const { data } = await apiClient.get<ChatMessage[]>(`/chat/threads/${encodeURIComponent(threadId)}/messages`);
+      setMessages(data);
+      return data;
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+      return null;
+    }
+  }, []);
+
+  const refreshThreads = useCallback(async (): Promise<ChatThread[] | null> => {
+    setIsLoadingThreads(true);
+    setError(null);
+    try {
+      const { data } = await apiClient.get<ChatThread[]>("/chat/threads");
+      setThreads(data);
+      return data;
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+      return null;
+    } finally {
+      setIsLoadingThreads(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!initialSessionId || initialSessionId === sessionIdRef.current) return;
-    sessionIdRef.current = initialSessionId;
-    setSessionIdState(initialSessionId);
-    setMessages([]);
-    setActiveTools([]);
-    setLastCompletedTool(null);
-    setIsStreaming(false);
-  }, [initialSessionId]);
+    refreshThreadsRef.current = refreshThreads;
+  }, [refreshThreads]);
+
+  const selectThread = useCallback(
+    async (threadId: string) => {
+      if (isStreaming) return false;
+      sessionIdRef.current = threadId;
+      setActiveThreadId(threadId);
+      if (typeof window !== "undefined") window.localStorage.setItem(ACTIVE_CHAT_THREAD_KEY, threadId);
+      const loaded = await loadMessages(threadId);
+      return loaded !== null;
+    },
+    [isStreaming, loadMessages]
+  );
+
+  const newThread = useCallback(async () => {
+    if (isStreaming) return null;
+    setError(null);
+    try {
+      const { data } = await apiClient.post<ChatThread>("/chat/threads", { title: "New chat" });
+      sessionIdRef.current = data.id;
+      setActiveThreadId(data.id);
+      setMessages([]);
+      if (typeof window !== "undefined") window.localStorage.setItem(ACTIVE_CHAT_THREAD_KEY, data.id);
+      await refreshThreads();
+      return data;
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+      return null;
+    }
+  }, [isStreaming, refreshThreads]);
+
+  const deleteThread = useCallback(
+    async (threadId: string) => {
+      if (isStreaming) return false;
+      setError(null);
+      try {
+        await apiClient.delete(`/chat/threads/${encodeURIComponent(threadId)}`);
+        const nextThreads = (await refreshThreads())?.filter((thread) => thread.id !== threadId) ?? [];
+        if (sessionIdRef.current === threadId) {
+          const nextThread = nextThreads[0];
+          if (nextThread) {
+            await selectThread(nextThread.id);
+          } else {
+            sessionIdRef.current = createId();
+            setActiveThreadId(null);
+            setMessages([]);
+            if (typeof window !== "undefined") window.localStorage.removeItem(ACTIVE_CHAT_THREAD_KEY);
+          }
+        }
+        return true;
+      } catch (err: unknown) {
+        setError(getErrorMessage(err));
+        return false;
+      }
+    },
+    [isStreaming, refreshThreads, selectThread]
+  );
 
   useEffect(() => {
-    const ws = new WebSocket(`${WS_URL}/ws/chat`);
-    wsRef.current = ws;
+    let cancelled = false;
+
+    const initializeThread = async () => {
+      const availableThreads = await refreshThreads();
+      if (cancelled) return;
+
+      if (initialSessionId) {
+        sessionIdRef.current = initialSessionId;
+        setActiveThreadId(initialSessionId);
+        if (typeof window !== "undefined") window.localStorage.setItem(ACTIVE_CHAT_THREAD_KEY, initialSessionId);
+        await loadMessages(initialSessionId);
+        return;
+      }
+
+      const savedThreadId = typeof window !== "undefined" ? window.localStorage.getItem(ACTIVE_CHAT_THREAD_KEY) : null;
+      const selectedThread =
+        availableThreads?.find((thread) => thread.id === savedThreadId) ??
+        availableThreads?.[0] ??
+        null;
+
+      if (selectedThread) {
+        sessionIdRef.current = selectedThread.id;
+        setActiveThreadId(selectedThread.id);
+        if (typeof window !== "undefined") window.localStorage.setItem(ACTIVE_CHAT_THREAD_KEY, selectedThread.id);
+        await loadMessages(selectedThread.id);
+      } else {
+        const nextId = sessionIdRef.current;
+        setActiveThreadId(nextId);
+        if (typeof window !== "undefined") window.localStorage.setItem(ACTIVE_CHAT_THREAD_KEY, nextId);
+      }
+    };
+
+    void initializeThread();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSessionId, loadMessages, refreshThreads]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let ws: WebSocket | null = null;
 
     const finishStreamingMessage = (fallbackContent?: string) => {
       const messageId = streamingIdRef.current;
@@ -285,56 +563,76 @@ export function useJarvisChat(initialSessionId?: string) {
       streamingIdRef.current = null;
     };
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-    };
-    ws.onclose = () => {
-      const hadStreamingMessage = streamingIdRef.current !== null;
-      setIsConnected(false);
-      setIsStreaming(false);
-      setActiveTools([]);
-      finishStreamingMessage("Connection to Jarvis was lost.");
-      if (hadStreamingMessage) setError("Connection to Jarvis was lost.");
-    };
-    ws.onmessage = (event) => {
-      const chunk: StreamChunk = JSON.parse(event.data);
-      if (chunk.type === "token" && chunk.content) {
-        setMessages((prev) =>
-          prev.map((message) =>
-            message.id === streamingIdRef.current ? { ...message, content: message.content + chunk.content } : message
-          )
-        );
-        return;
-      }
-      if (chunk.type === "tool_start" && chunk.tool_name) {
-        const toolName = chunk.tool_name;
-        setActiveTools((prev) =>
-          prev.some((tool) => tool.name === toolName) ? prev : [...prev, { name: toolName, phase: "running" }]
-        );
-        return;
-      }
-      if (chunk.type === "tool_end" && chunk.tool_name) {
-        setActiveTools((prev) => prev.filter((tool) => tool.name !== chunk.tool_name));
-        setLastCompletedTool(chunk.tool_name);
-        return;
-      }
-      if (chunk.type === "done") {
-        setIsStreaming(false);
-        setActiveTools([]);
-        finishStreamingMessage();
-        return;
-      }
-      if (chunk.type === "error") {
-        setIsStreaming(false);
-        setActiveTools([]);
-        const message = chunk.content ?? "Jarvis could not finish the request.";
-        setError(message);
-        finishStreamingMessage(message);
-      }
-    };
+    getJarvisToken()
+      .then((token) => {
+        if (cancelled) return;
 
-    return () => ws.close();
+        const wsUrl = new URL(`${WS_URL}/ws/chat`);
+        wsUrl.searchParams.set("token", token);
+        ws = new WebSocket(wsUrl.toString());
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setIsConnected(true);
+          setError(null);
+        };
+        ws.onclose = () => {
+          const hadStreamingMessage = streamingIdRef.current !== null;
+          setIsConnected(false);
+          setIsStreaming(false);
+          setActiveTools([]);
+          finishStreamingMessage("Connection to Jarvis was lost.");
+          if (hadStreamingMessage) setError("Connection to Jarvis was lost.");
+        };
+        ws.onmessage = (event) => {
+          const chunk: StreamChunk = JSON.parse(event.data);
+          if (chunk.type === "token" && chunk.content) {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === streamingIdRef.current ? { ...message, content: message.content + chunk.content } : message
+              )
+            );
+            return;
+          }
+          if (chunk.type === "tool_start" && chunk.tool_name) {
+            const toolName = chunk.tool_name;
+            setActiveTools((prev) =>
+              prev.some((tool) => tool.name === toolName) ? prev : [...prev, { name: toolName, phase: "running" }]
+            );
+            return;
+          }
+          if (chunk.type === "tool_end" && chunk.tool_name) {
+            setActiveTools((prev) => prev.filter((tool) => tool.name !== chunk.tool_name));
+            setLastCompletedTool(chunk.tool_name);
+            return;
+          }
+          if (chunk.type === "done") {
+            setIsStreaming(false);
+            setActiveTools([]);
+            finishStreamingMessage();
+            void refreshThreadsRef.current();
+            return;
+          }
+          if (chunk.type === "error") {
+            setIsStreaming(false);
+            setActiveTools([]);
+            const message = chunk.content ?? "Jarvis could not finish the request.";
+            setError(message);
+            finishStreamingMessage(message);
+          }
+        };
+      })
+      .catch((err: unknown) => {
+        setIsStreaming(false);
+        setActiveTools([]);
+        setIsConnected(false);
+        setError(getErrorMessage(err));
+      });
+
+    return () => {
+      cancelled = true;
+      ws?.close();
+    };
   }, []);
 
   const addLocalAssistantMessage = useCallback((content: string) => {
@@ -346,14 +644,31 @@ export function useJarvisChat(initialSessionId?: string) {
     setActivePersonality(personalityId);
   }, []);
 
+  const uploadAttachment = useCallback(async (file: File): Promise<ChatAttachment | null> => {
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const { data } = await apiClient.post<ChatAttachment>("/chat/attachments", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 120000,
+      });
+      return data;
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
+      return null;
+    }
+  }, []);
+
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string, attachments: ChatAttachment[] = []) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
       setError(null);
       setLastCompletedTool(null);
 
       const trimmed = text.trim();
+      if (!trimmed && !attachments.length) return;
       const [maybeCommand, ...remainingParts] = trimmed.split(/\s+/);
       const normalizedCommand = maybeCommand.toLowerCase();
       let outgoingText = trimmed;
@@ -361,7 +676,7 @@ export function useJarvisChat(initialSessionId?: string) {
       if (normalizedCommand === "/normal" || normalizedCommand === "/jarvis") {
         setPersonality(null);
         outgoingText = remainingParts.join(" ").trim();
-        if (!outgoingText) {
+        if (!outgoingText && !attachments.length) {
           addLocalAssistantMessage("Jarvis normal activated.");
           return;
         }
@@ -369,25 +684,32 @@ export function useJarvisChat(initialSessionId?: string) {
         const nextPersonality = COMMAND_TO_PERSONALITY_ID[normalizedCommand];
         setPersonality(nextPersonality);
         outgoingText = remainingParts.join(" ").trim();
-        if (!outgoingText) {
+        if (!outgoingText && !attachments.length) {
           addLocalAssistantMessage(`${getPersonality(nextPersonality)?.name ?? "Personality"} activated.`);
           return;
         }
       }
 
+      const visibleAttachmentText = attachments
+        .map((attachment) => `Attached: ${attachment.source.original_filename ?? attachment.source.title}`)
+        .join("\n");
+      const visibleText = [trimmed, visibleAttachmentText].filter(Boolean).join("\n\n");
+      const messageText = `${outgoingText || "Use the attached file."}${buildAttachmentContext(attachments)}`;
+
       const assistantId = createId();
       streamingIdRef.current = assistantId;
       setIsStreaming(true);
+      setActiveThreadId(sessionIdRef.current);
+      if (typeof window !== "undefined") window.localStorage.setItem(ACTIVE_CHAT_THREAD_KEY, sessionIdRef.current);
       setMessages((prev) => [
         ...prev,
-        { id: createId(), role: "user", content: trimmed },
+        { id: createId(), role: "user", content: visibleText },
         { id: assistantId, role: "assistant", content: "", isStreaming: true },
       ]);
       wsRef.current.send(
         JSON.stringify({
-          message: outgoingText,
+          message: messageText,
           session_id: sessionIdRef.current,
-          user_id: "default",
           personality_id: activePersonalityRef.current,
         })
       );
@@ -395,30 +717,17 @@ export function useJarvisChat(initialSessionId?: string) {
     [addLocalAssistantMessage, setPersonality]
   );
 
-  const setSessionId = useCallback((nextSessionId: string, nextMessages: StoredMessage[] = []) => {
-    sessionIdRef.current = nextSessionId;
-    setSessionIdState(nextSessionId);
-    streamingIdRef.current = null;
-    setIsStreaming(false);
-    setActiveTools([]);
-    setLastCompletedTool(null);
-    setError(null);
-    setMessages(
-      nextMessages
-        .filter((message) => message.role === "user" || message.role === "assistant")
-        .map((message) => ({
-          id: message.id,
-          role: message.role as "user" | "assistant",
-          content: message.content,
-        }))
-    );
-  }, []);
-
   return {
-    sessionId,
-    setSessionId,
     messages,
+    threads,
+    activeThreadId,
+    isLoadingThreads,
     sendMessage,
+    uploadAttachment,
+    selectThread,
+    newThread,
+    deleteThread,
+    refreshThreads,
     activePersonality,
     setPersonality,
     isConnected,

@@ -1,16 +1,22 @@
-"""Business logic for local calendar event management."""
+"""Business logic for Google Calendar event management."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import ValidationError
+from backend.services import google_workspace_client
 
-from backend.models.calendar_event import CalendarEvent
-from backend.storage.factory import create_store
-from backend.storage.schemas import CALENDAR_SCHEMA
 
-_store = create_store("calendar_events", CALENDAR_SCHEMA)
+class CalendarAuthorizationError(PermissionError):
+    """Raised when Google credentials do not authorize calendar access."""
+
+
+class CalendarServiceError(RuntimeError):
+    """Raised when Google Calendar cannot complete a request."""
+
+
+def _service():
+    return google_workspace_client.build_service("calendar", "v3")
 
 
 def _parse_event_datetime(value: str) -> datetime:
@@ -20,75 +26,70 @@ def _parse_event_datetime(value: str) -> datetime:
         raise ValueError(f"Invalid calendar datetime: {value}") from exc
 
 
-def _sortable_datetime(value: datetime) -> float:
-    normalized = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+def _rfc3339(value: str) -> str:
+    parsed = _parse_event_datetime(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.isoformat()
+
+
+def _sortable_datetime(value: str | None) -> float:
+    if not value:
+        return 0
+    normalized = _parse_event_datetime(value)
+    if normalized.tzinfo is None:
+        normalized = normalized.replace(tzinfo=timezone.utc)
     return normalized.timestamp()
 
 
-def _coerce_row(row: Any) -> dict[str, Any]:
-    return dict(row)
+def _translate_error(exc: Exception) -> Exception:
+    message = str(exc).lower()
+    if "insufficient authentication scopes" in message or "permission" in message or "forbidden" in message:
+        return CalendarAuthorizationError(
+            "Google Calendar access is configured but not authorized. Delete GOOGLE_TOKEN_FILE, restart the backend, "
+            "and approve the calendar.events scope during OAuth."
+        )
+    return CalendarServiceError(f"Google Calendar request failed: {exc}")
 
 
-def _row_to_event(row: dict[str, Any]) -> CalendarEvent:
-    return CalendarEvent(
-        id=row["id"],
-        title=row["title"],
-        start_datetime=_parse_event_datetime(row["start_datetime"]),
-        end_datetime=_parse_event_datetime(row["end_datetime"]),
-        description=row.get("description") or "",
-        location=row.get("location") or "",
-        created_at=_parse_event_datetime(row["created_at"]),
-    )
+def _event_datetime(event: dict[str, Any], key: str) -> str:
+    value = event.get(key) or {}
+    return value.get("dateTime") or value.get("date") or ""
 
 
-def _event_to_row(event: CalendarEvent) -> dict[str, Any]:
+def _event_to_dict(event: dict[str, Any]) -> dict[str, Any]:
+    created = event.get("created") or datetime.now(timezone.utc).isoformat()
     return {
-        "id": event.id,
-        "title": event.title,
-        "start_datetime": event.start_datetime.isoformat(),
-        "end_datetime": event.end_datetime.isoformat(),
-        "description": event.description,
-        "location": event.location,
-        "created_at": event.created_at.isoformat(),
+        "id": event.get("id", ""),
+        "title": event.get("summary", ""),
+        "start_datetime": _event_datetime(event, "start"),
+        "end_datetime": _event_datetime(event, "end"),
+        "description": event.get("description", ""),
+        "location": event.get("location", ""),
+        "created_at": created,
     }
 
 
-def _event_to_dict(event: CalendarEvent) -> dict[str, Any]:
-    return event.model_dump(mode="json")
-
-
-def _validate_event(event: CalendarEvent) -> None:
-    if _sortable_datetime(event.end_datetime) <= _sortable_datetime(event.start_datetime):
-        raise ValueError("Calendar event end_datetime must be after start_datetime.")
-
-
-def _build_event(
+def _build_event_body(
     *,
     title: str,
     start_datetime: str,
     end_datetime: str,
     description: str = "",
     location: str = "",
-    event_id: str | None = None,
-    created_at: datetime | None = None,
-) -> CalendarEvent:
-    data: dict[str, Any] = {
-        "title": title.strip(),
-        "start_datetime": _parse_event_datetime(start_datetime),
-        "end_datetime": _parse_event_datetime(end_datetime),
+) -> dict[str, Any]:
+    start = _rfc3339(start_datetime)
+    end = _rfc3339(end_datetime)
+    if _sortable_datetime(end) <= _sortable_datetime(start):
+        raise ValueError("Calendar event end_datetime must be after start_datetime.")
+
+    return {
+        "summary": title.strip(),
+        "start": {"dateTime": start},
+        "end": {"dateTime": end},
         "description": description.strip(),
         "location": location.strip(),
-        "created_at": created_at or datetime.now(timezone.utc),
     }
-    if event_id is not None:
-        data["id"] = event_id
-
-    try:
-        event = CalendarEvent(**data)
-    except ValidationError as exc:
-        raise ValueError(str(exc)) from exc
-    _validate_event(event)
-    return event
 
 
 def create_calendar_event(
@@ -99,40 +100,46 @@ def create_calendar_event(
     location: str = "",
     calendar_id: str = "primary",
 ) -> dict:
-    _ = calendar_id
-    event = _build_event(
+    body = _build_event_body(
         title=title,
         start_datetime=start_datetime,
         end_datetime=end_datetime,
         description=description,
         location=location,
     )
-    _store.set(event.id, _event_to_row(event))
+    try:
+        event = _service().events().insert(calendarId=calendar_id, body=body).execute()
+    except Exception as exc:
+        raise _translate_error(exc) from exc
     return _event_to_dict(event)
 
 
 def list_calendar_events(
     upcoming_only: bool = True, calendar_id: str = "primary", max_results: int = 50
 ) -> list[dict]:
-    _ = calendar_id
-    now_ts = datetime.now(timezone.utc).timestamp()
-    events = [_row_to_event(_coerce_row(row)) for row in _store.all()]
+    params: dict[str, Any] = {
+        "calendarId": calendar_id,
+        "maxResults": max_results,
+        "singleEvents": True,
+        "orderBy": "startTime",
+    }
     if upcoming_only:
-        events = [
-            event
-            for event in events
-            if _sortable_datetime(event.end_datetime) >= now_ts
-        ]
-    events.sort(key=lambda event: _sortable_datetime(event.start_datetime))
-    return [_event_to_dict(event) for event in events[:max_results]]
+        params["timeMin"] = datetime.now(timezone.utc).isoformat()
+    try:
+        result = _service().events().list(**params).execute()
+    except Exception as exc:
+        raise _translate_error(exc) from exc
+    return [_event_to_dict(event) for event in result.get("items") or []]
 
 
 def get_calendar_event(event_id: str, calendar_id: str = "primary") -> dict | None:
-    _ = calendar_id
-    row = _store.get(event_id)
-    if not row:
-        return None
-    return _event_to_dict(_row_to_event(_coerce_row(row)))
+    try:
+        event = _service().events().get(calendarId=calendar_id, eventId=event_id).execute()
+    except Exception as exc:
+        if "not found" in str(exc).lower() or "404" in str(exc):
+            return None
+        raise _translate_error(exc) from exc
+    return _event_to_dict(event)
 
 
 def update_calendar_event(
@@ -144,26 +151,31 @@ def update_calendar_event(
     location: str | None = None,
     calendar_id: str = "primary",
 ) -> dict | None:
-    _ = calendar_id
-    row = _store.get(event_id)
-    if not row:
+    current = get_calendar_event(event_id, calendar_id)
+    if not current:
         return None
 
-    current = _row_to_event(_coerce_row(row))
-    event = _build_event(
-        event_id=current.id,
-        title=title if title is not None else current.title,
-        start_datetime=start_datetime if start_datetime is not None else current.start_datetime.isoformat(),
-        end_datetime=end_datetime if end_datetime is not None else current.end_datetime.isoformat(),
-        description=description if description is not None else current.description,
-        location=location if location is not None else current.location,
-        created_at=current.created_at,
+    body = _build_event_body(
+        title=title if title is not None else current["title"],
+        start_datetime=start_datetime if start_datetime is not None else current["start_datetime"],
+        end_datetime=end_datetime if end_datetime is not None else current["end_datetime"],
+        description=description if description is not None else current["description"],
+        location=location if location is not None else current["location"],
     )
-    _store.set(event.id, _event_to_row(event))
+    try:
+        event = _service().events().patch(calendarId=calendar_id, eventId=event_id, body=body).execute()
+    except Exception as exc:
+        if "not found" in str(exc).lower() or "404" in str(exc):
+            return None
+        raise _translate_error(exc) from exc
     return _event_to_dict(event)
 
 
 def delete_calendar_event(event_id: str, calendar_id: str = "primary") -> str:
-    _ = calendar_id
-    deleted = _store.delete(event_id)
-    return f"Event {event_id} deleted." if deleted else f"Event {event_id} not found."
+    try:
+        _service().events().delete(calendarId=calendar_id, eventId=event_id).execute()
+    except Exception as exc:
+        if "not found" in str(exc).lower() or "404" in str(exc):
+            return f"Event {event_id} not found."
+        raise _translate_error(exc) from exc
+    return f"Event {event_id} deleted."

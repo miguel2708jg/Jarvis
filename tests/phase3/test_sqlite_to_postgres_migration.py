@@ -67,3 +67,44 @@ def test_migrate_table_upserts_rows_idempotently(tmp_path):
     assert first == {"source": 1, "migrated": 1, "destination": 1}
     assert second == {"source": 1, "migrated": 1, "destination": 1}
     assert len(pg_conn.rows["todos"]) == 1
+
+
+def test_migrate_knowledge_pages_table(tmp_path):
+    from scripts.migrate_sqlite_to_postgres import migrate_table
+    from backend.storage.schemas import KNOWLEDGE_PAGES_SCHEMA
+
+    db_path = tmp_path / "jarvis.db"
+    sqlite_conn = sqlite3.connect(db_path)
+    sqlite_conn.row_factory = sqlite3.Row
+    sqlite_conn.execute(KNOWLEDGE_PAGES_SCHEMA)
+    sqlite_conn.execute(
+        """
+        INSERT INTO knowledge_pages (
+            id, path, type, title, summary, body, updated_at,
+            source_ids, tags, aliases, metadata, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "concepts/db-brain.md",
+            "concepts/db-brain.md",
+            "concept",
+            "DB Brain",
+            "Structured wiki page",
+            "Body",
+            "2026-04-15T00:00:00+00:00",
+            "[]",
+            '["db"]',
+            "[]",
+            "{}",
+            "2026-04-15T00:00:00+00:00",
+        ),
+    )
+    sqlite_conn.commit()
+
+    pg_conn = FakePostgresConnection()
+
+    result = migrate_table(sqlite_conn, pg_conn, "knowledge_pages")
+
+    assert result == {"source": 1, "migrated": 1, "destination": 1}
+    assert len(pg_conn.rows["knowledge_pages"]) == 1

@@ -20,8 +20,6 @@ class KnowledgeSource(BaseModel):
     title: str
     created_at: str
     raw_path: str
-    raw_storage: Literal["local", "s3"] = "local"
-    raw_object_key: str | None = None
     extracted_path: str | None = None
     note_id: str | None = None
     original_filename: str | None = None

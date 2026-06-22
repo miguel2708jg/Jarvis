@@ -10,7 +10,7 @@ Dev mode (interactive inspector):
 from typing import Literal
 from mcp.server.fastmcp import FastMCP
 
-from backend.services import notes_service, todos_service, calendar_service
+from backend.services import notes_service, todos_service, calendar_service, drive_service
 
 mcp = FastMCP("Jarvis")
 
@@ -59,37 +59,6 @@ def create_todo(text: str, priority: Literal["low", "medium", "high"] = "medium"
 def list_todos(show_completed: bool = False) -> list[dict]:
     """List to-do items. By default only shows incomplete items."""
     return todos_service.list_todos(show_completed)
-
-
-@mcp.tool()
-def get_todo(todo_id: str) -> dict | None:
-    """Get a specific to-do item by its ID."""
-    return todos_service.get_todo(todo_id)
-
-
-@mcp.tool()
-def update_todo(
-    todo_id: str,
-    text: str | None = None,
-    priority: Literal["low", "medium", "high"] | None = None,
-    due_date: str | None = None,
-    completed: bool | None = None,
-    clear_due_date: bool = False,
-) -> dict | None:
-    """Update a to-do item's text, priority, due date, or completed status."""
-    resolved_due_date: str | None | object = todos_service._UNSET
-    if due_date is not None:
-        resolved_due_date = due_date
-    elif clear_due_date:
-        resolved_due_date = None
-
-    return todos_service.update_todo(
-        todo_id,
-        text=text,
-        priority=priority,
-        due_date=resolved_due_date,
-        completed=completed,
-    )
 
 
 @mcp.tool()
@@ -149,6 +118,37 @@ def update_calendar_event(
 def delete_calendar_event(event_id: str, calendar_id: str = "primary") -> str:
     """Delete a calendar event by its ID."""
     return calendar_service.delete_calendar_event(event_id, calendar_id)
+
+
+# Google Drive (4 tools)
+
+@mcp.tool()
+def search_drive_files(query: str, max_results: int = 10) -> list[dict]:
+    """Search Google Drive files by name or Drive query syntax. Returns file metadata."""
+    return drive_service.search_drive_files(query, max_results)
+
+
+@mcp.tool()
+def get_drive_file(file_id: str, include_content: bool = True) -> dict:
+    """Get Google Drive file metadata and, by default, exported text content when available."""
+    return drive_service.get_drive_file(file_id, include_content)
+
+
+@mcp.tool()
+def create_drive_text_file(
+    name: str,
+    content: str,
+    parent_id: str | None = None,
+    mime_type: str = "text/plain",
+) -> dict:
+    """Create a text file in Google Drive. Does not overwrite or delete existing files."""
+    return drive_service.create_drive_text_file(name, content, parent_id, mime_type)
+
+
+@mcp.tool()
+def create_drive_folder(name: str, parent_id: str | None = None) -> dict:
+    """Create a folder in Google Drive. Does not move, rename, or delete files."""
+    return drive_service.create_drive_folder(name, parent_id)
 
 
 if __name__ == "__main__":

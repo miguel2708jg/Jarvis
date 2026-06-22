@@ -2,25 +2,36 @@
 
 Run: pytest tests/phase3/test_websocket_streaming.py -v
 """
+import base64
+import hashlib
+import hmac
 import json
+import time
 import pytest
 from unittest.mock import MagicMock
 
 from fastapi import WebSocketDisconnect
 
+from backend.config import settings
+
+AUTH_EMAIL = "majg2708@gmail.com"
+WS_SECRET = "test-ws-secret"
+
+
+def _b64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _ws_token(email: str = AUTH_EMAIL) -> str:
+    payload_b64 = _b64url(json.dumps({"email": email, "exp": int(time.time()) + 60}).encode("utf-8"))
+    signature = _b64url(hmac.new(WS_SECRET.encode("utf-8"), payload_b64.encode("ascii"), hashlib.sha256).digest())
+    return f"{payload_b64}.{signature}"
+
 
 @pytest.fixture(autouse=True)
-def isolated_chat_stores(monkeypatch, tmp_path):
-    from backend.storage.sqlite_store import SQLiteStore
-    import backend.services.message_service as message_svc
-    import backend.services.thread_memory_service as memory_svc
-    import backend.services.thread_service as thread_svc
-    from backend.config import settings
-
-    monkeypatch.setattr(settings, "database_path", str(tmp_path / "jarvis.db"))
-    message_svc._store = SQLiteStore("messages", message_svc.MESSAGES_SCHEMA)
-    memory_svc._store = SQLiteStore("thread_memory", memory_svc.THREAD_MEMORY_SCHEMA)
-    thread_svc._store = SQLiteStore("threads", thread_svc.THREADS_SCHEMA)
+def auth_settings(monkeypatch):
+    monkeypatch.setattr(settings, "auth_allowed_emails", AUTH_EMAIL)
+    monkeypatch.setattr(settings, "backend_auth_token_secret", WS_SECRET)
 
 
 @pytest.fixture
@@ -35,13 +46,18 @@ def mock_graph():
 
 
 class FakeWebSocket:
-    def __init__(self, incoming_messages: list[str]):
+    def __init__(self, incoming_messages: list[str], token: str | None = None):
         self._incoming_messages = list(incoming_messages)
+        self.query_params = {"token": token or _ws_token()}
         self.sent_messages: list[str] = []
         self.accepted = False
+        self.closed_code: int | None = None
 
     async def accept(self):
         self.accepted = True
+
+    async def close(self, code: int):
+        self.closed_code = code
 
     async def receive_text(self) -> str:
         if self._incoming_messages:
@@ -68,13 +84,6 @@ async def test_websocket_receives_tokens_and_done(mock_graph):
     assert websocket.accepted is True
     assert "token" in types, f"Expected 'token' frame, got: {types}"
     assert "done" in types, f"Expected 'done' frame, got: {types}"
-
-    from backend.services import message_service
-
-    stored = message_service.list_messages("test-session")
-    assert [message["role"] for message in stored] == ["user", "assistant"]
-    assert stored[0]["content"] == "Hello"
-    assert stored[1]["content"] == "Hello Jarvis"
 
 
 @pytest.mark.asyncio

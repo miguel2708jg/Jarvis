@@ -91,18 +91,6 @@ def test_update_todo():
     assert updated["due_date"].startswith("2026-05-01")
 
 
-def test_mcp_todo_crud_surface():
-    from backend import mcp_server
-
-    todo = mcp_server.create_todo("MCP task", "low")
-    fetched = mcp_server.get_todo(todo["id"])
-    assert fetched["text"] == "MCP task"
-
-    updated = mcp_server.update_todo(todo["id"], text="Updated MCP task", priority="high")
-    assert updated["text"] == "Updated MCP task"
-    assert updated["priority"] == "high"
-
-
 def test_list_todos_hides_completed_by_default():
     from backend.tools.todos import create_todo, complete_todo, list_todos
     todo = create_todo.invoke({"text": "Done task"})

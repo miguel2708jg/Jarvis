@@ -1,0 +1,67 @@
+- generic [active] [ref=e1] [box=0,-620,1351,1388]:
+  - main [ref=e2] [box=0,-620,1351,1388]:
+    - generic [ref=e4] [box=0,-620,430,1388]:
+      - generic [ref=e10] [box=59,-591,39,20]: Orbit
+      - generic [ref=e11] [box=0,-542,430,1206]:
+        - generic [ref=e12] [box=0,-542,1716,454]:
+          - generic [ref=e14] [box=20,-522,1676,88]:
+            - paragraph [ref=e15] [box=20,-522,1676,15]: Personal AI Operator
+            - heading "Orbit keeps your workday aligned." [level=1] [ref=e16] [box=20,-499,1676,32]
+            - paragraph [ref=e17] [box=20,-457,1676,23]: Ask for plans, summarize context, or let the assistant touch notes, ToDos, calendar, and knowledge without leaving chat.
+          - generic [ref=e18] [box=20,-419,1676,261]:
+            - generic [ref=e19] [box=20,-419,1676,82]
+            - generic [ref=e21] [box=20,-329,1676,82]
+            - generic [ref=e23] [box=20,-240,1676,82]
+          - generic [ref=e25] [box=20,-142,107,34]: Connecting
+        - generic [ref=e27] [box=0,-72,1716,207]:
+          - generic [ref=e28] [box=17,-55,1682,106]:
+            - generic [ref=e29] [box=17,-55,1682,55]
+            - button "Normal" [ref=e32] [cursor=pointer] [box=17,12,1682,39]
+          - generic [ref=e33] [box=1,50,1714,68]:
+            - button "Mentor Decisiones profundas" [ref=e34] [cursor=pointer] [box=17,50,178,64]
+            - button "CEO Ejecucion" [ref=e41] [cursor=pointer] [box=205,50,178,64]
+            - button "Coach Claridad" [ref=e49] [cursor=pointer] [box=393,50,178,64]
+            - button "Amigo Casual" [ref=e55] [cursor=pointer] [box=581,50,178,64]
+            - button "Rizz Carisma" [ref=e62] [cursor=pointer] [box=769,50,178,64]
+            - button "Focus Accion" [ref=e68] [cursor=pointer] [box=957,50,178,64]
+            - button "Analista Datos" [ref=e75] [cursor=pointer] [box=1145,50,178,64]
+            - button "Creativo Ideas" [ref=e81] [cursor=pointer] [box=1333,50,178,64]
+            - button "Social Mensajes" [ref=e88] [cursor=pointer] [box=1521,50,178,64]
+        - generic [ref=e95] [box=0,151,1716,274]:
+          - button "Plan my day" [disabled] [ref=e96] [box=0,151,1716,58]:
+            - img [ref=e97] [box=15,171,18,18]
+            - text: Plan my day
+          - button "Create ToDo" [disabled] [ref=e99] [box=0,223,1716,58]:
+            - img [ref=e100] [box=15,243,18,18]
+            - text: Create ToDo
+          - button "Summarize notes" [disabled] [ref=e102] [box=0,295,1716,58]:
+            - img [ref=e103] [box=15,315,18,18]
+            - text: Summarize notes
+          - button "Knowledge brief" [disabled] [ref=e105] [box=0,367,1716,58]:
+            - img [ref=e106] [box=15,387,18,18]
+            - text: Knowledge brief
+        - generic [ref=e109] [box=0,441,1716,106]:
+          - heading "Use Orbit like an operator, not a chatbot." [level=2] [ref=e110] [box=17,458,1682,24]
+          - paragraph [ref=e111] [box=17,490,1682,24]: Give it goals, context, and constraints. Tool activity appears while Orbit works.
+        - generic [ref=e112] [box=0,579,1716,85]:
+          - textbox "Waiting for connection" [ref=e113] [box=9,588,1638,67]
+          - button "Send message" [disabled] [ref=e114] [box=1655,603,52,52]:
+            - img [ref=e115] [box=1672,620,18,18]
+    - navigation "Orbit modules" [ref=e117] [box=461,678,430,72]:
+      - button [ref=e118] [cursor=pointer] [box=470,687,55,54]:
+        - img [ref=e119] [box=487,704,20,20]
+      - button [ref=e121] [cursor=pointer] [box=529,687,55,54]:
+        - img [ref=e122] [box=547,704,20,20]
+      - button [ref=e125] [cursor=pointer] [box=588,687,55,54]:
+        - img [ref=e126] [box=606,704,20,20]
+      - button [ref=e128] [cursor=pointer] [box=648,687,55,54]:
+        - img [ref=e129] [box=665,704,20,20]
+      - button [ref=e132] [cursor=pointer] [box=707,687,55,54]:
+        - img [ref=e133] [box=725,704,20,20]
+      - button [ref=e135] [cursor=pointer] [box=767,687,55,54]:
+        - img [ref=e136] [box=784,704,20,20]
+      - button [ref=e139] [cursor=pointer] [box=826,687,55,54]:
+        - img [ref=e140] [box=844,704,20,20]
+  - button "Open Next.js Dev Tools" [ref=e148] [cursor=pointer] [box=22,714,32,32]:
+    - img [ref=e149] [box=22,710,40,40]
+  - alert [ref=e152] [box=-1,767,1,1]

@@ -21,6 +21,27 @@ from backend.tools.knowledge import (
     ingest_note_to_knowledge,
     lint_knowledge_base,
 )
+from backend.tools.email import (
+    search_email_threads,
+    get_email_thread,
+    create_email_draft,
+    send_email,
+    send_email_draft,
+    list_email_drafts,
+    list_email_labels,
+    create_email_label,
+    update_email_label,
+    apply_email_labels_to_thread,
+    remove_email_labels_from_thread,
+    apply_email_labels_to_message,
+    remove_email_labels_from_message,
+)
+from backend.tools.drive import (
+    search_drive_files,
+    get_drive_file,
+    create_drive_text_file,
+    create_drive_folder,
+)
 
 ALL_TOOLS = [
     # Notes
@@ -47,4 +68,23 @@ ALL_TOOLS = [
     get_knowledge_page,
     ingest_note_to_knowledge,
     lint_knowledge_base,
+    # Gmail MCP
+    search_email_threads,
+    get_email_thread,
+    create_email_draft,
+    send_email,
+    send_email_draft,
+    list_email_drafts,
+    list_email_labels,
+    create_email_label,
+    update_email_label,
+    apply_email_labels_to_thread,
+    remove_email_labels_from_thread,
+    apply_email_labels_to_message,
+    remove_email_labels_from_message,
+    # Google Drive
+    search_drive_files,
+    get_drive_file,
+    create_drive_text_file,
+    create_drive_folder,
 ]

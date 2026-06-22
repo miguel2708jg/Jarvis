@@ -15,7 +15,6 @@ from backend.models.knowledge import (
     KnowledgeStatus,
 )
 from backend.services import knowledge_service
-from backend.storage.object_store import ObjectStorageError
 
 router = APIRouter()
 
@@ -52,18 +51,16 @@ def list_knowledge_sources():
 @router.get("/sources/{source_id}/raw")
 def get_knowledge_source_raw(source_id: str):
     try:
-        source, data = knowledge_service.read_source_raw(source_id)
+        attachment = knowledge_service.get_source_attachment(source_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Knowledge source raw file not found: {source_id}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ObjectStorageError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    filename = source.original_filename or f"{source.source_id}.md"
-    media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    filename = attachment["filename"]
+    media_type = attachment["mime_type"]
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-    return StreamingResponse(io.BytesIO(data), media_type=media_type, headers=headers)
+    return StreamingResponse(io.BytesIO(attachment["content"]), media_type=media_type, headers=headers)
 
 
 @router.post("/ingest/note", response_model=KnowledgeIngestResult)

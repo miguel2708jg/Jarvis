@@ -10,6 +10,13 @@ def _service(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         knowledge_service.settings,
+        "database_path",
+        str(tmp_path / "jarvis.db"),
+        raising=False,
+    )
+    monkeypatch.setattr(knowledge_service.settings, "database_url", None, raising=False)
+    monkeypatch.setattr(
+        knowledge_service.settings,
         "knowledge_vault_path",
         str(tmp_path / "knowledge_vault"),
         raising=False,
@@ -75,6 +82,8 @@ def test_ingest_note_creates_raw_source_pages_index_and_log(monkeypatch, tmp_pat
     assert (vault / "wiki" / "index.md").exists()
     log_text = (vault / "wiki" / "log.md").read_text(encoding="utf-8")
     assert "ingest_note | note:note-1" in log_text
+    assert knowledge_service._pages().get("entities/launch-plan.md") is not None
+    assert knowledge_service._sources().get(result.source.source_id) is not None
 
 
 def test_lint_applies_only_wiki_writes(monkeypatch, tmp_path):
@@ -96,6 +105,7 @@ def test_lint_applies_only_wiki_writes(monkeypatch, tmp_path):
     assert result.operation == "lint"
     assert result.touched_pages == ["analyses/lint-report.md"]
     assert Path(knowledge_service.settings.knowledge_vault_path, "wiki", "analyses", "lint-report.md").exists()
+    assert knowledge_service._pages().get("analyses/lint-report.md") is not None
 
 
 def test_lint_rejects_writer_path_outside_wiki(monkeypatch, tmp_path):

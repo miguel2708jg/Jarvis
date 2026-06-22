@@ -57,6 +57,35 @@ class PostgresStore:
         )
         return self._connection
 
+    @staticmethod
+    def _is_connection_error(exc: Exception) -> bool:
+        import psycopg
+
+        return isinstance(exc, (psycopg.OperationalError, psycopg.InterfaceError))
+
+    def _reset_connection(self) -> None:
+        conn = self._connection
+        self._connection = None
+        close = getattr(conn, "close", None)
+        if close is None:
+            return
+        try:
+            close()
+        except Exception:
+            pass
+
+    def _run_with_reconnect(self, operation: Callable[[Any], Any]) -> Any:
+        for attempt in range(2):
+            try:
+                conn = self._get_connection()
+                return operation(conn)
+            except Exception as exc:
+                if attempt == 0 and self._is_connection_error(exc):
+                    self._reset_connection()
+                    continue
+                raise
+        raise RuntimeError("Postgres operation retry exhausted")
+
     def _commit(self, conn) -> None:
         commit = getattr(conn, "commit", None)
         if commit is not None:
@@ -85,50 +114,63 @@ class PostgresStore:
             f"INSERT INTO {self.table_name} ({cols}) VALUES ({placeholders}) "
             f"ON CONFLICT (id) DO UPDATE SET {updates}"
         )
-        conn = self._get_connection()
-        self._ensure_initialized(conn)
-        conn.execute(sql, list(data.values()))
-        self._commit(conn)
+
+        def operation(conn):
+            self._ensure_initialized(conn)
+            conn.execute(sql, list(data.values()))
+            self._commit(conn)
+
+        self._run_with_reconnect(operation)
 
     def get(self, key: str) -> Optional[dict[str, Any]]:
-        conn = self._get_connection()
-        self._ensure_initialized(conn)
-        cursor = conn.execute(
-            f"SELECT * FROM {self.table_name} WHERE id = %s", (key,)
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        def operation(conn):
+            self._ensure_initialized(conn)
+            cursor = conn.execute(
+                f"SELECT * FROM {self.table_name} WHERE id = %s", (key,)
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+        return self._run_with_reconnect(operation)
 
     def all(self) -> list[dict[str, Any]]:
-        conn = self._get_connection()
-        self._ensure_initialized(conn)
-        cursor = conn.execute(f"SELECT * FROM {self.table_name}")
-        return [dict(row) for row in cursor.fetchall()]
+        def operation(conn):
+            self._ensure_initialized(conn)
+            cursor = conn.execute(f"SELECT * FROM {self.table_name}")
+            return [dict(row) for row in cursor.fetchall()]
+
+        return self._run_with_reconnect(operation)
 
     def delete(self, key: str) -> bool:
-        conn = self._get_connection()
-        self._ensure_initialized(conn)
-        cursor = conn.execute(
-            f"DELETE FROM {self.table_name} WHERE id = %s", (key,)
-        )
-        self._commit(conn)
-        return cursor.rowcount > 0
+        def operation(conn):
+            self._ensure_initialized(conn)
+            cursor = conn.execute(
+                f"DELETE FROM {self.table_name} WHERE id = %s", (key,)
+            )
+            self._commit(conn)
+            return cursor.rowcount > 0
+
+        return self._run_with_reconnect(operation)
 
     def delete_where(self, where_clause: str, params: tuple = ()) -> int:
-        conn = self._get_connection()
-        self._ensure_initialized(conn)
-        cursor = conn.execute(
-            f"DELETE FROM {self.table_name} WHERE {_postgres_placeholders(where_clause)}",
-            params,
-        )
-        self._commit(conn)
-        return cursor.rowcount
+        def operation(conn):
+            self._ensure_initialized(conn)
+            cursor = conn.execute(
+                f"DELETE FROM {self.table_name} WHERE {_postgres_placeholders(where_clause)}",
+                params,
+            )
+            self._commit(conn)
+            return cursor.rowcount
+
+        return self._run_with_reconnect(operation)
 
     def query(self, where_clause: str, params: tuple = ()) -> list[dict[str, Any]]:
-        conn = self._get_connection()
-        self._ensure_initialized(conn)
-        cursor = conn.execute(
-            f"SELECT * FROM {self.table_name} WHERE {_postgres_placeholders(where_clause)}",
-            params,
-        )
-        return [dict(row) for row in cursor.fetchall()]
+        def operation(conn):
+            self._ensure_initialized(conn)
+            cursor = conn.execute(
+                f"SELECT * FROM {self.table_name} WHERE {_postgres_placeholders(where_clause)}",
+                params,
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+        return self._run_with_reconnect(operation)

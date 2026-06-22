@@ -1,0 +1,123 @@
+/**
+ * Orbit Design System v1.0
+ * Dark personal OS visual language for Orbit.
+ */
+
+:root {
+  /* Layout */
+  --mobile-max: 430px;
+
+  /* Backgrounds and surfaces */
+  --background: #09090b;
+  --background-alt: #111827;
+  --surface: #18181b;
+  --surface-soft: #111827;
+
+  /* Text */
+  --ink: #ffffff;
+  --text: #ffffff;
+  --text-muted: #a1a1aa;
+  --text-soft: #71717a;
+
+  /* Identity */
+  --primary: #7c3aed;
+  --primary-strong: #8b5cf6;
+  --primary-soft: rgba(124, 58, 237, 0.16);
+
+  --teal: #2563eb;
+  --teal-strong: #3b82f6;
+  --teal-soft: rgba(37, 99, 235, 0.16);
+
+  /* Actions and state */
+  --accent: #2563eb;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+
+  --border: #27272a;
+  --border-secondary: #3f3f46;
+  --tabbar: rgba(9, 9, 11, 0.92);
+  --orbit-gradient: linear-gradient(135deg, #7c3aed, #2563eb);
+
+  /* Radius */
+  --radius-sm: 12px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-soft: 0 0 20px rgba(124, 58, 237, 0.15);
+  --shadow-strong: 0 0 30px rgba(124, 58, 237, 0.25);
+
+  /* Typography */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  --text-4xl: 32px;
+
+  --font-normal: 400;
+  --font-semibold: 650;
+  --font-bold: 800;
+  --font-extrabold: 850;
+  --font-black: 900;
+
+  --line-height-tight: 1.08;
+  --line-height-snug: 1.2;
+  --line-height-normal: 1.5;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.7px;
+  --letter-spacing-wider: 1.4px;
+
+  /* Spacing */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-22: 22px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* Z-index */
+  --z-hide: -1;
+  --z-auto: auto;
+  --z-base: 0;
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-tabbar: 30;
+  --z-modal: 40;
+  --z-popover: 50;
+
+  /* Compatibility aliases used by the current UI layer */
+  --background-muted: var(--background-alt);
+  --surface-muted: var(--surface-soft);
+  --secondary: var(--tabbar);
+  --accent-strong: var(--primary-strong);
+  --accent-soft: var(--primary-soft);
+  --success-soft: rgba(16, 185, 129, 0.14);
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --warning-soft: rgba(245, 158, 11, 0.16);
+  --amber-soft: rgba(245, 158, 11, 0.16);
+  --sky-soft: var(--teal-soft);
+  --lavender: var(--primary-soft);
+  --orange: var(--accent);
+  --pink: var(--primary);
+  --shadow: var(--shadow-strong);
+  --radius-full: var(--radius-pill);
+  --radius-2xl: 20px;
+  --radius-3xl: var(--radius-lg);
+  --radius-4xl: 26px;
+  --radius-5xl: var(--radius-xl);
+}

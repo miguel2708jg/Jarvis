@@ -30,10 +30,18 @@ token.json
 htmlcov/
 logs/
 
+# Local browser/debug artifacts
+.playwright-mcp/
+web/next-dev*.log
+web/next-mobile*.log
+
 # Node / Expo
 mobile/node_modules/
 mobile/.expo/
 mobile/dist/
+mobile-legacy/node_modules/
+mobile-legacy/.expo/
+mobile-legacy/dist/
 web/node_modules/
 web/.next/
 *.tsbuildinfo

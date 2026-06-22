@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.services import calendar_service
+from backend.services.calendar_service import CalendarAuthorizationError, CalendarServiceError
 
 router = APIRouter()
 
@@ -23,9 +24,20 @@ class EventUpdate(BaseModel):
     location: str | None = None
 
 
+def _translate_calendar_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, CalendarAuthorizationError):
+        return HTTPException(status_code=403, detail=str(exc))
+    if isinstance(exc, CalendarServiceError):
+        return HTTPException(status_code=503, detail=str(exc))
+    return HTTPException(status_code=503, detail=f"Google Calendar unavailable: {exc}")
+
+
 @router.get("")
 def list_events(upcoming_only: bool = Query(True), calendar_id: str = Query("primary")):
-    return calendar_service.list_calendar_events(upcoming_only, calendar_id)
+    try:
+        return calendar_service.list_calendar_events(upcoming_only, calendar_id)
+    except Exception as exc:
+        raise _translate_calendar_error(exc) from exc
 
 
 @router.post("", status_code=201)
@@ -36,11 +48,16 @@ def create_event(body: EventCreate, calendar_id: str = Query("primary")):
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _translate_calendar_error(exc) from exc
 
 
 @router.get("/{event_id}")
 def get_event(event_id: str, calendar_id: str = Query("primary")):
-    data = calendar_service.get_calendar_event(event_id, calendar_id)
+    try:
+        data = calendar_service.get_calendar_event(event_id, calendar_id)
+    except Exception as exc:
+        raise _translate_calendar_error(exc) from exc
     if not data:
         raise HTTPException(status_code=404, detail="Event not found")
     return data
@@ -54,6 +71,8 @@ def update_event(event_id: str, body: EventUpdate, calendar_id: str = Query("pri
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _translate_calendar_error(exc) from exc
     if not data:
         raise HTTPException(status_code=404, detail="Event not found")
     return data
@@ -61,6 +80,9 @@ def update_event(event_id: str, body: EventUpdate, calendar_id: str = Query("pri
 
 @router.delete("/{event_id}", status_code=204)
 def delete_event(event_id: str, calendar_id: str = Query("primary")):
-    result = calendar_service.delete_calendar_event(event_id, calendar_id)
+    try:
+        result = calendar_service.delete_calendar_event(event_id, calendar_id)
+    except Exception as exc:
+        raise _translate_calendar_error(exc) from exc
     if "not found" in result:
         raise HTTPException(status_code=404, detail="Event not found")

@@ -45,20 +45,6 @@ def list_messages(thread_id: str) -> list[dict]:
     return [m.model_dump() for m in messages]
 
 
-def get_latest_message(thread_id: str, role: str | None = None) -> dict | None:
-    """Return the latest message in a thread, optionally filtered by role."""
-    if role:
-        rows = _store.query(
-            "thread_id = ? AND role = ? ORDER BY created_at DESC",
-            (thread_id, role),
-        )
-    else:
-        rows = _store.query("thread_id = ? ORDER BY created_at DESC", (thread_id,))
-    if not rows:
-        return None
-    return _row_to_message(rows[0]).model_dump()
-
-
 def get_message(message_id: str) -> dict | None:
     """Get a message by ID."""
     row = _store.get(message_id)

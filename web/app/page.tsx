@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowUp,
@@ -10,37 +10,68 @@ import {
   Circle,
   Clock,
   CloudUpload,
-  FolderOpen,
   FileText,
-  Inbox,
   Library,
-  Mail,
-  MapPin,
+  LogOut,
   Mic,
+  MicOff,
   Pencil,
   Plus,
   Search,
   Settings,
   Sparkles,
-  Square,
   Trash2,
-  Volume2,
   X,
 } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 import { PERSONALITIES, getPersonality } from "@/lib/personalities";
-import { API_URL, apiClient } from "@/lib/api";
-import { useCalendar, useEmails, useJarvisChat, useKnowledge, useNotes, useThreads, useTodos } from "@/lib/hooks";
-import type { ChatMessage, KnowledgePage, KnowledgePageDetail, Note, PersonalityId, Todo, VoiceResponse } from "@/lib/types";
+import { useJarvisChat, useKnowledge, useNotes, useTodos } from "@/lib/hooks";
+import type { ChatAttachment, ChatMessage, ChatThread, KnowledgePage, KnowledgePageDetail, Note, Todo } from "@/lib/types";
 
-type TabId = "chat" | "notes" | "knowledge" | "todos" | "calendar" | "email" | "settings";
+type TabId = "chat" | "notes" | "knowledge" | "todos" | "settings";
+type AgentPromptDraft = { id: number; text: string };
+
+type SpeechRecognitionResultLike = {
+  0: { transcript: string };
+  isFinal: boolean;
+};
+
+type SpeechRecognitionEventLike = Event & {
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+};
+
+type SpeechRecognitionErrorEventLike = Event & {
+  error?: string;
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+type SpeechRecognitionWindow = Window &
+  typeof globalThis & {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  };
 
 const tabs = [
   { id: "chat", label: "Chat", Icon: Sparkles },
   { id: "notes", label: "Notes", Icon: FileText },
   { id: "knowledge", label: "Knowledge", Icon: Library },
   { id: "todos", label: "ToDo", Icon: CheckCircle2 },
-  { id: "calendar", label: "Calendar", Icon: CalendarDays },
-  { id: "email", label: "Email", Icon: Mail },
   { id: "settings", label: "Settings", Icon: Settings },
 ] satisfies { id: TabId; label: string; Icon: typeof Sparkles }[];
 
@@ -48,6 +79,8 @@ const quickActions = [
   { label: "Plan my day", prompt: "Plan my day using my notes, ToDos, calendar, and knowledge." },
   { label: "Create ToDo", prompt: "Create a high priority ToDo to follow up on everything urgent today." },
   { label: "Summarize notes", prompt: "Summarize my notes into a short action-oriented brief." },
+  { label: "Summarize inbox", prompt: "Search my Gmail inbox and summarize the important unread threads with suggested next actions." },
+  { label: "Draft email", prompt: "Create a Gmail draft for the next reply I describe. Do not send it." },
   { label: "Knowledge brief", prompt: "Search my knowledge vault and give me a concise brief on what matters now." },
 ];
 
@@ -109,9 +142,9 @@ function Hero({
       <div className="hero-accent" />
       <div className="hero-top">
         <div>
-          <p className="eyebrow">{eyebrow}</p>
+          {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
           <h1>{title}</h1>
-          <p className="hero-copy">{subtitle}</p>
+          {subtitle ? <p className="hero-copy">{subtitle}</p> : null}
         </div>
         {action ? <button className="dark-button" onClick={action.onClick}>{action.label}</button> : null}
       </div>
@@ -159,30 +192,13 @@ function Modal({
   );
 }
 
-function MessageBubble({
-  message,
-  agentName,
-  onSpeak,
-  speaking,
-}: {
-  message: ChatMessage;
-  agentName: string;
-  onSpeak?: (message: ChatMessage) => void;
-  speaking?: boolean;
-}) {
+function MessageBubble({ message, agentName }: { message: ChatMessage; agentName: string }) {
   const isUser = message.role === "user";
   return (
     <div className={`message-row ${isUser ? "right" : "left"}`}>
       {!isUser ? <div className="avatar">{agentName.slice(0, 1).toUpperCase()}</div> : null}
       <div className="message-stack">
-        <span className="message-label">
-          {isUser ? "You" : agentName}
-          {!isUser && onSpeak ? (
-            <button className="inline-icon-button" onClick={() => onSpeak(message)} disabled={message.isStreaming || speaking} aria-label="Play response">
-              <Volume2 size={13} />
-            </button>
-          ) : null}
-        </span>
+        <span className="message-label">{isUser ? "You" : agentName}</span>
         <div className={`bubble ${isUser ? "user" : "assistant"}`}>
           {message.isStreaming && !message.content ? <span className="typing">...</span> : message.content}
           {message.isStreaming && message.content ? <span className="cursor">|</span> : null}
@@ -192,263 +208,416 @@ function MessageBubble({
   );
 }
 
-function ChatScreen({ agentName }: { agentName: string }) {
+function ChatHistoryPanel({ chat }: { chat: ReturnType<typeof useJarvisChat> }) {
+  const deleteThread = async (event: MouseEvent<HTMLButtonElement>, thread: ChatThread) => {
+    event.stopPropagation();
+    if (confirm(`Delete "${thread.title}"?`)) await chat.deleteThread(thread.id);
+  };
+
+  return (
+    <section className="panel compact chat-history-panel">
+      <div className="section-head horizontal">
+        <div>
+          <p className="eyebrow">Conversations</p>
+          <h2>Memory</h2>
+        </div>
+        <button className="soft-button" onClick={() => void chat.newThread()} disabled={chat.isStreaming}>
+          <Plus size={16} />New
+        </button>
+      </div>
+      <div className="thread-list">
+        {chat.threads.length ? chat.threads.map((thread) => (
+          <div
+            className={chat.activeThreadId === thread.id ? "thread-item active" : "thread-item"}
+            key={thread.id}
+          >
+            <button className="thread-select" onClick={() => void chat.selectThread(thread.id)} disabled={chat.isStreaming}>
+              <strong>{thread.title || "New chat"}</strong>
+              <small>{thread.message_count} messages | {formatDate(thread.updated_at)}</small>
+            </button>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={(event) => void deleteThread(event, thread)}
+              disabled={chat.isStreaming}
+              aria-label={`Delete ${thread.title || "conversation"}`}
+              title="Delete conversation"
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        )) : (
+          <p className="muted-copy">{chat.isLoadingThreads ? "Loading conversations." : "No saved conversations yet."}</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ChatScreen({ agentName, draftPrompt }: { agentName: string; draftPrompt: AgentPromptDraft | null }) {
   const [input, setInput] = useState("");
-  const [bootstrapped, setBootstrapped] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachment | null>(null);
+  const [fileStatus, setFileStatus] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [isVoiceModeActive, setIsVoiceModeActive] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const chat = useJarvisChat();
-  const threads = useThreads();
   const selectedPersonality = getPersonality(chat.activePersonality);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const wasStreamingRef = useRef(false);
-  const bootstrapStartedRef = useRef(false);
-
-  const personalityStorageKey = "jarvis.threadPersonalities";
-
-  const readPersonalityMap = (): Record<string, PersonalityId | null> => {
-    if (typeof window === "undefined") return {};
-    try {
-      return JSON.parse(window.localStorage.getItem(personalityStorageKey) || "{}");
-    } catch {
-      return {};
-    }
-  };
-
-  const writeThreadPersonality = (threadId: string, personalityId: PersonalityId | null) => {
-    if (typeof window === "undefined") return;
-    const next = { ...readPersonalityMap(), [threadId]: personalityId };
-    window.localStorage.setItem(personalityStorageKey, JSON.stringify(next));
-  };
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingAttachmentRef = useRef<ChatAttachment | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const voiceReplyAfterIdRef = useRef<string | null | undefined>(undefined);
+  const voiceModeActiveRef = useRef(false);
+  const voiceTranscriptRef = useRef("");
+  const shouldSendVoiceRef = useRef(false);
+  const restartVoiceTimerRef = useRef<number | null>(null);
+  const microphoneCheckedRef = useRef(false);
+  const chatRef = useRef<{
+    isConnected: boolean;
+    isStreaming: boolean;
+    messages: ChatMessage[];
+    sendMessage: (text: string, attachments?: ChatAttachment[]) => void;
+  }>({
+    isConnected: false,
+    isStreaming: false,
+    messages: [] as ChatMessage[],
+    sendMessage: () => undefined,
+  });
 
   useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [chat.messages]);
 
   useEffect(() => {
+    if (draftPrompt?.text) setInput(draftPrompt.text);
+  }, [draftPrompt]);
+
+  useEffect(() => {
+    pendingAttachmentRef.current = pendingAttachment;
+  }, [pendingAttachment]);
+
+  useEffect(() => {
+    chatRef.current = {
+      isConnected: chat.isConnected,
+      isStreaming: chat.isStreaming,
+      messages: chat.messages,
+      sendMessage: chat.sendMessage,
+    };
+  }, [chat.isConnected, chat.isStreaming, chat.messages, chat.sendMessage]);
+
+  const getRecognitionConstructor = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    const speechWindow = window as SpeechRecognitionWindow;
+    return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+  }, []);
+
+  const clearVoiceRestartTimer = useCallback(() => {
+    if (restartVoiceTimerRef.current === null) return;
+    globalThis.clearTimeout(restartVoiceTimerRef.current);
+    restartVoiceTimerRef.current = null;
+  }, []);
+
+  const getVoiceCaptureError = useCallback((error?: string) => {
+    if (error === "not-allowed" || error === "service-not-allowed") {
+      return "Permite el microfono en el navegador y vuelve a intentarlo.";
+    }
+    if (error === "audio-capture") {
+      return "No encontre un microfono disponible para capturar audio.";
+    }
+    if (error === "network") {
+      return "El reconocimiento de voz no pudo conectarse. Revisa tu conexion.";
+    }
+    return "No pude capturar audio. Intenta hablar de nuevo.";
+  }, []);
+
+  const requestMicrophoneAccess = useCallback(async () => {
+    if (typeof window === "undefined") return false;
+    if (!window.isSecureContext && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      setVoiceError("El microfono requiere HTTPS o localhost.");
+      setVoiceStatus(null);
+      return false;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setVoiceError("Este navegador no permite solicitar acceso al microfono.");
+      setVoiceStatus(null);
+      return false;
+    }
+    if (microphoneCheckedRef.current) return true;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      microphoneCheckedRef.current = true;
+      return true;
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      setVoiceStatus(null);
+      setVoiceError(
+        name === "NotAllowedError" || name === "SecurityError"
+          ? "Permite el microfono en el navegador y vuelve a intentarlo."
+          : "No encontre un microfono disponible para capturar audio."
+      );
+      return false;
+    }
+  }, []);
+
+  const sendVoiceTranscript = useCallback(() => {
+    const transcript = voiceTranscriptRef.current.trim();
+
+    voiceModeActiveRef.current = false;
+    shouldSendVoiceRef.current = false;
+    clearVoiceRestartTimer();
+    setIsVoiceModeActive(false);
+    setIsListening(false);
+    recognitionRef.current = null;
+
+    if (!transcript) {
+      setVoiceStatus(null);
+      return;
+    }
+
+    const previousAssistant = [...chatRef.current.messages].reverse().find((message) => message.role === "assistant");
+    const attachment = pendingAttachmentRef.current;
+    setVoiceStatus("Enviando al agente.");
+    setInput("");
+    setPendingAttachment(null);
+    setFileStatus(null);
+    setFileError(null);
+    voiceTranscriptRef.current = "";
+    voiceReplyAfterIdRef.current = previousAssistant?.id ?? null;
+    chatRef.current.sendMessage(transcript, attachment ? [attachment] : []);
+  }, [clearVoiceRestartTimer]);
+
+  const startListening = useCallback(async () => {
+    if (!voiceModeActiveRef.current) return;
+
+    setVoiceError(null);
+    clearVoiceRestartTimer();
+
+    const Recognition = getRecognitionConstructor();
+    if (!Recognition) {
+      voiceModeActiveRef.current = false;
+      setIsVoiceModeActive(false);
+      setVoiceError("Este navegador no soporta reconocimiento de voz.");
+      setVoiceStatus(null);
+      return;
+    }
+    if (!chatRef.current.isConnected) {
+      voiceModeActiveRef.current = false;
+      setIsVoiceModeActive(false);
+      setVoiceError("Espera a que el chat se conecte antes de hablar.");
+      setVoiceStatus(null);
+      return;
+    }
+    if (chatRef.current.isStreaming) {
+      setVoiceStatus("Esperando respuesta.");
+      return;
+    }
+    if (!(await requestMicrophoneAccess())) {
+      voiceModeActiveRef.current = false;
+      setIsVoiceModeActive(false);
+      setIsListening(false);
+      recognitionRef.current = null;
+      return;
+    }
+
+    window.speechSynthesis?.cancel();
+
+    const recognition = new Recognition();
+    recognitionRef.current = recognition;
+    recognition.lang = navigator.language?.startsWith("es") ? navigator.language : "es-MX";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+
+    const baseTranscript = voiceTranscriptRef.current.trim();
+    let latestTranscript = baseTranscript;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setVoiceStatus("Escuchando.");
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      const sessionTranscript = Array.from({ length: event.results.length }, (_, index) => event.results[index]?.[0]?.transcript ?? "")
+        .join(" ")
+        .trim();
+      const transcript = [baseTranscript, sessionTranscript].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+      latestTranscript = transcript;
+      voiceTranscriptRef.current = transcript;
+      setInput(transcript);
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      if (event.error === "no-speech") {
+        setVoiceStatus("No escuche nada. Sigo en modo voz.");
+        return;
+      }
+      if (event.error !== "aborted") {
+        voiceModeActiveRef.current = false;
+        setIsVoiceModeActive(false);
+        setVoiceStatus(null);
+        setVoiceError(getVoiceCaptureError(event.error));
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+
+      if (!voiceModeActiveRef.current) return;
+
+      if (shouldSendVoiceRef.current) {
+        sendVoiceTranscript();
+        return;
+      }
+
+      voiceTranscriptRef.current = latestTranscript.trim();
+      setVoiceStatus(voiceTranscriptRef.current ? "Sigo escuchando." : "No escuche nada. Sigo en modo voz.");
+      restartVoiceTimerRef.current = window.setTimeout(() => { void startListening(); }, 250);
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      voiceModeActiveRef.current = false;
+      setIsVoiceModeActive(false);
+      setIsListening(false);
+      recognitionRef.current = null;
+      setVoiceStatus(null);
+      setVoiceError("No pude iniciar el microfono.");
+    }
+  }, [clearVoiceRestartTimer, getRecognitionConstructor, getVoiceCaptureError, requestMicrophoneAccess, sendVoiceTranscript]);
+
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setVoiceError("Este navegador no soporta lectura de voz.");
+      setVoiceStatus(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = navigator.language?.startsWith("es") ? navigator.language : "es-MX";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.onstart = () => setVoiceStatus("Reproduciendo respuesta.");
+    utterance.onend = () => setVoiceStatus(null);
+    utterance.onerror = () => {
+      setVoiceError("No pude reproducir la respuesta por voz.");
+      setVoiceStatus(null);
+    };
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  useEffect(() => {
+    if (voiceReplyAfterIdRef.current === undefined) return;
+
+    const previousAssistantId = voiceReplyAfterIdRef.current;
+    const previousIndex = previousAssistantId
+      ? chat.messages.findIndex((message) => message.id === previousAssistantId)
+      : -1;
+    const nextAssistant = chat.messages
+      .slice(previousIndex + 1)
+      .find((message) => message.role === "assistant");
+
+    if (!nextAssistant || nextAssistant.isStreaming || !nextAssistant.content.trim()) return;
+
+    voiceReplyAfterIdRef.current = undefined;
+    speak(nextAssistant.content);
+  }, [chat.messages, speak]);
+
+  useEffect(() => {
     return () => {
-      recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
-      audioRef.current?.pause();
+      voiceModeActiveRef.current = false;
+      shouldSendVoiceRef.current = false;
+      if (restartVoiceTimerRef.current !== null) {
+        globalThis.clearTimeout(restartVoiceTimerRef.current);
+      }
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
     };
   }, []);
 
-  const loadThread = useCallback(
-    async (threadId: string) => {
-      const storedMessages = await threads.getMessages(threadId);
-      chat.setSessionId(threadId, storedMessages ?? []);
-      chat.setPersonality(readPersonalityMap()[threadId] ?? null);
-    },
-    [chat, threads]
-  );
-
-  const createConversation = useCallback(async () => {
-    const created = await threads.create({ title: "Nueva conversacion", user_id: "default" });
-    if (!created) return null;
-    writeThreadPersonality(created.id, chat.activePersonality);
-    await threads.refresh();
-    await loadThread(created.id);
-    return created;
-  }, [chat.activePersonality, loadThread, threads]);
-
-  useEffect(() => {
-    if (bootstrapped || bootstrapStartedRef.current) return;
-    bootstrapStartedRef.current = true;
-    let cancelled = false;
-    (async () => {
-      const existingThreads = await threads.refresh();
-      if (cancelled) return;
-      const firstThread = existingThreads?.[0];
-      if (firstThread) await loadThread(firstThread.id);
-      else await createConversation();
-      if (!cancelled) setBootstrapped(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [bootstrapped, createConversation, loadThread, threads]);
-
-  useEffect(() => {
-    if (wasStreamingRef.current && !chat.isStreaming) {
-      threads.refresh();
-    }
-    wasStreamingRef.current = chat.isStreaming;
-  }, [chat.isStreaming, threads]);
-
-  useEffect(() => {
-    writeThreadPersonality(chat.sessionId, chat.activePersonality);
-  }, [chat.activePersonality, chat.sessionId]);
-
   const send = (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || chat.isStreaming || !chat.isConnected) return;
+    const attachment = pendingAttachment;
+    if ((!trimmed && !attachment) || chat.isStreaming || !chat.isConnected || isUploadingFile) return;
     setInput("");
-    chat.sendMessage(trimmed);
+    setPendingAttachment(null);
+    setFileStatus(null);
+    setFileError(null);
+    chat.sendMessage(trimmed, attachment ? [attachment] : []);
   };
 
-  const setPersonality = (personalityId: PersonalityId | null) => {
-    chat.setPersonality(personalityId);
-    writeThreadPersonality(chat.sessionId, personalityId);
-  };
+  const handleFileUpload = async (file: File) => {
+    setIsUploadingFile(true);
+    setFileError(null);
+    setFileStatus(`Adjuntando ${file.name}.`);
 
-  const deleteConversation = async (threadId: string) => {
-    if (!confirm("Delete this conversation?")) return;
-    const removed = await threads.remove(threadId);
-    if (!removed) return;
-    const nextThreads = await threads.refresh();
-    const next = nextThreads?.[0];
-    if (next) await loadThread(next.id);
-    else await createConversation();
-  };
+    const result = await chat.uploadAttachment(file);
+    setIsUploadingFile(false);
 
-  const playBase64Audio = (audioBase64: string, id: string) => {
-    audioRef.current?.pause();
-    const binary = atob(audioBase64);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    const url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    setSpeakingMessageId(id);
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
-      setSpeakingMessageId(null);
-    };
-    audio.onerror = () => {
-      URL.revokeObjectURL(url);
-      setSpeakingMessageId(null);
-    };
-    audio.play().catch(() => {
-      URL.revokeObjectURL(url);
-      setSpeakingMessageId(null);
-    });
-  };
-
-  const speakMessage = async (message: ChatMessage) => {
-    if (!message.content.trim()) return;
-    setVoiceError(null);
-    setSpeakingMessageId(message.id);
-    try {
-      const { data } = await apiClient.post<{ audio_base64: string }>("/voice/tts", { text: message.content });
-      playBase64Audio(data.audio_base64, message.id);
-    } catch (error) {
-      setVoiceError(error instanceof Error ? error.message : "Could not synthesize speech.");
-      setSpeakingMessageId(null);
+    if (!result) {
+      setFileStatus(null);
+      setFileError(chat.error ?? "No pude adjuntar el archivo.");
+      return;
     }
+
+    setPendingAttachment(result);
+    setFileStatus(`${file.name} listo para enviarse con tu siguiente mensaje.`);
   };
 
-  const reloadActiveThread = async () => {
-    const storedMessages = await threads.getMessages(chat.sessionId);
-    chat.setSessionId(chat.sessionId, storedMessages ?? []);
-    await threads.refresh();
-  };
-
-  const submitVoice = async (blob: Blob) => {
-    setIsProcessingVoice(true);
-    setVoiceError(null);
-    try {
-      const form = new FormData();
-      form.append("audio", blob, "recording.webm");
-      form.append("session_id", chat.sessionId);
-      if (chat.activePersonality) form.append("personality_id", chat.activePersonality);
-      const response = await fetch(`${API_URL}/voice`, { method: "POST", body: form });
-      if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail ?? "Voice request failed.");
-      const data = (await response.json()) as VoiceResponse;
-      await reloadActiveThread();
-      playBase64Audio(data.audio_base64, `voice-${Date.now()}`);
-    } catch (error) {
-      setVoiceError(error instanceof Error ? error.message : "Voice request failed.");
-    } finally {
-      setIsProcessingVoice(false);
+  const toggleVoiceChat = () => {
+    if (isVoiceModeActive) {
+      shouldSendVoiceRef.current = true;
+      setVoiceStatus("Enviando al agente.");
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      } else {
+        sendVoiceTranscript();
+      }
+      return;
     }
-  };
 
-  const startRecording = async () => {
+    voiceModeActiveRef.current = true;
+    shouldSendVoiceRef.current = false;
+    voiceTranscriptRef.current = input.trim();
+    setIsVoiceModeActive(true);
     setVoiceError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      chunksRef.current = [];
-      recorderRef.current = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      recorder.onstop = () => {
-        stream.getTracks().forEach((track) => track.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        if (blob.size > 0) submitVoice(blob);
-      };
-      recorder.start();
-      setIsRecording(true);
-    } catch (error) {
-      setVoiceError(error instanceof Error ? error.message : "Microphone permission failed.");
-    }
-  };
-
-  const stopRecording = () => {
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    setIsRecording(false);
+    setVoiceStatus("Escuchando.");
+    void startListening();
   };
 
   return (
     <div className="screen chat-screen">
       <Hero
-        eyebrow="Personal AI Operator"
-        title={`${agentName} keeps your workday aligned.`}
-        subtitle="Ask for plans, summarize context, or let the assistant touch notes, ToDos, calendar, and knowledge without leaving chat."
-        stats={[
-          { label: "Core modules", value: "5" },
-          { label: "Streaming replies", value: "Live" },
-          { label: "Action-aware chat", value: "Tools" },
-        ]}
-        error={chat.error || voiceError}
+        eyebrow=""
+        title="CHAT"
+        subtitle=""
+        error={chat.error}
       >
         <div className={`status-pill ${chat.isConnected ? "online" : "offline"}`}>
           <span />{chat.isConnected ? "Connected" : "Connecting"}
         </div>
       </Hero>
 
-      <section className="chat-workspace">
-        <aside className="thread-panel">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Conversations</p>
-              <h2>History</h2>
-            </div>
-            <button className="icon-button" onClick={() => createConversation()} aria-label="New conversation">
-              <Plus size={17} />
-            </button>
-          </div>
-          <div className="thread-list">
-            {threads.items.map((thread) => (
-              <button
-                className={thread.id === chat.sessionId ? "thread-item active" : "thread-item"}
-                key={thread.id}
-                onClick={() => loadThread(thread.id)}
-              >
-                <span>{thread.title || "Nueva conversacion"}</span>
-                <small>{formatDate(thread.updated_at, { month: "short", day: "numeric" })}</small>
-              </button>
-            ))}
-          </div>
-          <button className="text-danger-button" onClick={() => deleteConversation(chat.sessionId)} disabled={threads.items.length === 0}>
-            <Trash2 size={15} />
-            Delete current
-          </button>
-        </aside>
+      <ChatHistoryPanel chat={chat} />
 
-        <div className="chat-main">
       <section className="panel">
         <div className="section-head">
           <div>
             <p className="eyebrow">Personality</p>
             <h2>{selectedPersonality?.name ?? `${agentName} normal`}</h2>
           </div>
-          <button className={!chat.activePersonality ? "chip active" : "chip"} onClick={() => setPersonality(null)} disabled={chat.isStreaming}>
+          <button className={!chat.activePersonality ? "chip active" : "chip"} onClick={() => chat.setPersonality(null)} disabled={chat.isStreaming}>
             Normal
           </button>
         </div>
@@ -457,7 +626,7 @@ function ChatScreen({ agentName }: { agentName: string }) {
             <button
               className={chat.activePersonality === personality.id ? "personality active" : "personality"}
               key={personality.id}
-              onClick={() => setPersonality(personality.id)}
+              onClick={() => chat.setPersonality(personality.id)}
               disabled={chat.isStreaming}
             >
               <Icon size={18} />
@@ -491,39 +660,74 @@ function ChatScreen({ agentName }: { agentName: string }) {
 
       <section className="messages">
         {chat.messages.length === 0 ? (
-          <div className="empty">
-            <h2>Use {agentName} like an operator, not a chatbot.</h2>
-            <p>Give it goals, context, and constraints. Tool activity appears while {agentName} works.</p>
-          </div>
-        ) : chat.messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            agentName={agentName}
-            onSpeak={message.role === "assistant" ? speakMessage : undefined}
-            speaking={speakingMessageId === message.id}
-          />
-        ))}
+          null
+        ) : chat.messages.map((message) => <MessageBubble key={message.id} message={message} agentName={agentName} />)}
         <div ref={endRef} />
       </section>
 
       <form className="composer" onSubmit={(event) => { event.preventDefault(); send(input); }}>
-        <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder={chat.isConnected ? `Ask ${agentName} to organize the next move` : "Waiting for connection"} />
+        <div className="composer-main">
+          {pendingAttachment ? (
+            <div className="attachment-chip">
+              <FileText size={16} />
+              <span>{pendingAttachment.source.original_filename ?? pendingAttachment.source.title}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingAttachment(null);
+                  setFileStatus(null);
+                  setFileError(null);
+                }}
+                aria-label="Remove attached file"
+                title="Remove attached file"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : null}
+          <textarea value={input} onChange={(event) => setInput(event.target.value)} placeholder={chat.isConnected ? `Ask ${agentName} to organize the next move` : "Waiting for connection"} />
+        </div>
         <button
-          className={isRecording ? "voice-button recording" : "voice-button"}
           type="button"
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={chat.isStreaming || isProcessingVoice}
-          aria-label={isRecording ? "Stop recording" : "Start recording"}
+          className="upload-button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploadingFile || chat.isStreaming}
+          aria-label="Upload file"
+          title="Upload file"
         >
-          {isRecording ? <Square size={16} /> : <Mic size={17} />}
+          <CloudUpload size={18} />
         </button>
-        <button className="send-button" disabled={!chat.isConnected || chat.isStreaming || !input.trim()} aria-label="Send message">
+        <input
+          ref={fileInputRef}
+          className="composer-file-input"
+          type="file"
+          accept=".md,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void handleFileUpload(file);
+          }}
+        />
+        <button
+          type="button"
+          className={isListening ? "voice-button listening" : "voice-button"}
+          onClick={toggleVoiceChat}
+          disabled={!chat.isConnected || (!isVoiceModeActive && chat.isStreaming)}
+          aria-label={isVoiceModeActive ? "Enviar mensaje de voz" : "Hablar con el agente"}
+          title={isVoiceModeActive ? "Enviar mensaje de voz" : "Hablar con el agente"}
+        >
+          {isVoiceModeActive ? <MicOff size={18} /> : <Mic size={18} />}
+        </button>
+        <button className="send-button" disabled={!chat.isConnected || chat.isStreaming || isUploadingFile || (!input.trim() && !pendingAttachment)} aria-label="Send message">
           <ArrowUp size={18} />
         </button>
       </form>
-        </div>
-      </section>
+      {fileStatus || fileError ? (
+        <p className={fileError ? "file-feedback error" : "file-feedback"}>{fileError ?? fileStatus}</p>
+      ) : null}
+      {voiceStatus || voiceError ? (
+        <p className={voiceError ? "voice-feedback error" : "voice-feedback"}>{voiceError ?? voiceStatus}</p>
+      ) : null}
     </div>
   );
 }
@@ -531,11 +735,12 @@ function ChatScreen({ agentName }: { agentName: string }) {
 function NotesScreen({ agentName }: { agentName: string }) {
   const notes = useNotes();
   const knowledge = useKnowledge();
+  const refreshNotes = notes.refresh;
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Note | null>(null);
   const [draft, setDraft] = useState({ title: "", content: "", tags: "" });
 
-  useEffect(() => { notes.refresh(); }, [notes.refresh]);
+  useEffect(() => { refreshNotes(); }, [refreshNotes]);
 
   const openEditor = (note?: Note) => {
     setEditing(note ?? null);
@@ -554,9 +759,9 @@ function NotesScreen({ agentName }: { agentName: string }) {
   return (
     <div className="screen">
       <Hero
-        eyebrow="Notebook"
-        title="Notes that look organized before you open them."
-        subtitle={`Keep personal context in one place, edit fast inside the app, or let ${agentName} create notes from chat.`}
+        eyebrow=""
+        title="NOTAS"
+        subtitle=""
         action={{ label: "New note", onClick: () => openEditor() }}
         stats={[
           { label: "Total notes", value: String(notes.items.length) },
@@ -597,12 +802,13 @@ function NotesScreen({ agentName }: { agentName: string }) {
 
 function TodosScreen({ agentName }: { agentName: string }) {
   const todos = useTodos();
+  const refreshTodos = todos.refresh;
   const [filter, setFilter] = useState<"pending" | "all" | "completed">("pending");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Todo | null>(null);
   const [draft, setDraft] = useState<{ text: string; priority: Todo["priority"]; due_date: string }>({ text: "", priority: "medium", due_date: "" });
 
-  useEffect(() => { todos.refresh({ show_completed: true }); }, [todos.refresh]);
+  useEffect(() => { refreshTodos({ show_completed: true }); }, [refreshTodos]);
 
   const filtered = todos.items.filter((todo) => filter === "all" || (filter === "pending" ? !todo.completed : todo.completed));
   const openEditor = (todo?: Todo) => {
@@ -622,9 +828,9 @@ function TodosScreen({ agentName }: { agentName: string }) {
   return (
     <div className="screen">
       <Hero
-        eyebrow="ToDo Board"
-        title="Daily execution with more signal and less clutter."
-        subtitle="Track work from chat or directly here. Priorities, due dates, and completion state stay readable at a glance."
+        eyebrow=""
+        title="TODOLIST"
+        subtitle=""
         action={{ label: "New ToDo", onClick: () => openEditor() }}
         stats={[
           { label: "Pending", value: String(todos.items.filter((todo) => !todo.completed).length) },
@@ -669,13 +875,14 @@ function TodosScreen({ agentName }: { agentName: string }) {
 
 function KnowledgeScreen() {
   const knowledge = useKnowledge();
+  const refreshKnowledge = knowledge.refresh;
   const [type, setType] = useState("all");
   const [query, setQuery] = useState("");
   const [noteId, setNoteId] = useState("");
   const [detail, setDetail] = useState<KnowledgePageDetail | null>(null);
 
   const filters = useMemo(() => ({ type: type === "all" ? undefined : type, q: query.trim() || undefined }), [query, type]);
-  useEffect(() => { knowledge.refresh(filters); }, [knowledge.refresh, filters]);
+  useEffect(() => { refreshKnowledge(filters); }, [refreshKnowledge, filters]);
 
   const openDetail = async (page: KnowledgePage | string) => {
     const path = typeof page === "string" ? page : page.path;
@@ -686,9 +893,9 @@ function KnowledgeScreen() {
   return (
     <div className="screen">
       <Hero
-        eyebrow="Knowledge Vault"
-        title="Obsidian-style wiki with explicit operations."
-        subtitle="Ingest notes/files, run lint maintenance, and navigate linked knowledge pages."
+        eyebrow=""
+        title="WIKI"
+        subtitle=""
         action={{ label: "Run lint", onClick: async () => window.alert((await knowledge.runLint()) ? "Lint complete." : "Lint failed.") }}
         stats={[
           { label: "Pages", value: String(knowledge.status?.page_count ?? 0) },
@@ -707,13 +914,12 @@ function KnowledgeScreen() {
             if (result) setNoteId("");
             window.alert(result ? `${result.touched_pages.length} page(s) updated.` : "Ingest failed.");
           }}><Archive size={16} />Ingest note</button>
-          <label className="soft-button file-button"><CloudUpload size={16} />Upload file<input type="file" onChange={async (event) => {
+          <label className="soft-button file-button"><CloudUpload size={16} />Upload file<input type="file" accept=".md,.txt,.pdf,.docx,text/markdown,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={async (event) => {
             const file = event.target.files?.[0];
             if (!file) return;
             const result = await knowledge.uploadFile(file);
             window.alert(result ? `${result.touched_pages.length} page(s) updated.` : "Upload failed.");
           }} /></label>
-          <a className="soft-button" href="/documents"><FolderOpen size={16} />Open drive</a>
         </div>
       </section>
       <section className="panel">
@@ -740,52 +946,6 @@ function KnowledgeScreen() {
       <Modal open={Boolean(detail)} onClose={() => setDetail(null)} eyebrow={detail?.type.toUpperCase() ?? "Page"} title={detail?.title ?? ""}>
         {detail ? <div className="detail"><small>{detail.path}</small>{detail.summary ? <p>{detail.summary}</p> : null}<h3>Body</h3><pre>{detail.body}</pre>{detail.wikilinks.length ? <><h3>Wikilinks</h3><div className="chip-row">{detail.wikilinks.map((link) => <button className="chip" key={link} onClick={() => openDetail(link)}>{link}</button>)}</div></> : null}</div> : null}
       </Modal>
-    </div>
-  );
-}
-
-function CalendarScreen({ agentName }: { agentName: string }) {
-  const calendar = useCalendar();
-  useEffect(() => { calendar.refresh(); }, [calendar.refresh]);
-  const nextEvent = calendar.items[0];
-  return (
-    <div className="screen">
-      <Hero eyebrow="Calendar" title="Upcoming time blocks with enough hierarchy to scan fast." subtitle="Use chat to schedule events, then manage the resulting agenda here without losing the broader timeline." stats={[{ label: "Upcoming", value: String(calendar.items.length) }, { label: "Next event", value: formatDate(nextEvent?.start_datetime, { month: "short", day: "numeric" }) }]} error={calendar.error} />
-      <div className="list">
-        {calendar.items.length ? calendar.items.map((event) => (
-          <article className="event-card" key={event.id}>
-            <div className="date-pill"><strong>{formatDate(event.start_datetime, { month: "short", day: "numeric" })}</strong><span>{formatDate(event.start_datetime, { hour: "2-digit", minute: "2-digit" })}</span></div>
-            <div>
-              <h2>{event.title}</h2>
-              <p><Clock size={14} />{formatDate(event.start_datetime)}</p>
-              {event.location ? <p><MapPin size={14} />{event.location}</p> : null}
-              {event.description ? <p>{event.description}</p> : null}
-            </div>
-            <button className="icon-button" onClick={() => confirm(`Delete "${event.title}"?`) && calendar.remove(event.id)} aria-label="Delete event"><Trash2 size={16} /></button>
-          </article>
-        )) : <Empty title="No events yet." text={`Ask ${agentName} to schedule a meeting, add a deadline, or build an agenda.`} />}
-      </div>
-    </div>
-  );
-}
-
-function EmailScreen({ agentName }: { agentName: string }) {
-  const emails = useEmails();
-  useEffect(() => { emails.refresh(); }, [emails.refresh]);
-  const unread = emails.items.filter((email) => !email.is_read).length;
-  return (
-    <div className="screen">
-      <Hero eyebrow="Inbox" title="Email should feel triaged before you even open a thread." subtitle={`Use ${agentName} to summarize the inbox, then scan sender, subject, urgency, and unread state.`} stats={[{ label: "Messages", value: String(emails.items.length) }, { label: "Unread", value: String(unread) }]} error={emails.error} />
-      <div className="list">
-        {emails.items.length ? emails.items.map((email) => (
-          <article className={`card email ${!email.is_read ? "unread" : ""}`} key={email.message_id}>
-            <div className="card-meta"><strong><Inbox size={14} />{email.sender}</strong><small>{email.date}</small></div>
-            <h2>{email.subject || "(No subject)"}</h2>
-            <p>{email.snippet || email.body}</p>
-            <span className={!email.is_read ? "chip active" : "chip"}>{email.is_read ? "Read" : "Unread"}</span>
-          </article>
-        )) : <Empty title="No emails available." text={`Configure Gmail credentials to enable inbox access, then ask ${agentName} to summarize what matters.`} />}
-      </div>
     </div>
   );
 }
@@ -848,6 +1008,8 @@ function Empty({ title, text }: { title: string; text: string }) {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>("chat");
   const [agentName, setAgentName] = useState("Orbit");
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email ?? "";
 
   useEffect(() => {
     const savedAgentName = window.localStorage.getItem("orbit.agentName");
@@ -858,13 +1020,19 @@ export default function Home() {
     <main>
       <div className="background-wash" />
       <div className="app-shell">
-        <BrandMark agentName={agentName} />
-        {activeTab === "chat" && <ChatScreen agentName={agentName} />}
+        <div className="topbar">
+          <BrandMark agentName={agentName} />
+          <div className="auth-chip">
+            <span>{userEmail}</span>
+            <button onClick={() => signOut({ callbackUrl: "/login" })} aria-label="Sign out" title="Sign out">
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+        {activeTab === "chat" && <ChatScreen agentName={agentName} draftPrompt={null} />}
         {activeTab === "notes" && <NotesScreen agentName={agentName} />}
         {activeTab === "knowledge" && <KnowledgeScreen />}
         {activeTab === "todos" && <TodosScreen agentName={agentName} />}
-        {activeTab === "calendar" && <CalendarScreen agentName={agentName} />}
-        {activeTab === "email" && <EmailScreen agentName={agentName} />}
         {activeTab === "settings" && <SettingsScreen agentName={agentName} onAgentNameChange={setAgentName} />}
       </div>
       <nav className="tabbar" aria-label={`${agentName} modules`}>

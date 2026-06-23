@@ -193,4 +193,3 @@ From a phone on the same Wi-Fi network, use the computer's local IP, for example
 ```text
 http://192.168.1.244:3000/
 ```
-

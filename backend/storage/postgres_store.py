@@ -54,6 +54,7 @@ class PostgresStore:
             self.database_url,
             row_factory=dict_row,
             connect_timeout=15,
+            autocommit=True,
         )
         return self._connection
 
@@ -61,7 +62,10 @@ class PostgresStore:
     def _is_connection_error(exc: Exception) -> bool:
         import psycopg
 
-        return isinstance(exc, (psycopg.OperationalError, psycopg.InterfaceError))
+        if isinstance(exc, (psycopg.OperationalError, psycopg.InterfaceError)):
+            return True
+        msg = str(getattr(exc, "pgcode", "") or "") or str(exc)
+        return "IdleInTransactionSessionTimeout" in msg or "connection" in msg.lower()
 
     def _reset_connection(self) -> None:
         conn = self._connection

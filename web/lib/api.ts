@@ -1,7 +1,35 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api";
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL;
 const configuredWsUrl = process.env.NEXT_PUBLIC_WS_URL;
+const configuredBackendPort = process.env.NEXT_PUBLIC_BACKEND_PORT;
+
+function isLocalHost(hostname: string): boolean {
+  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(hostname.toLowerCase());
+}
+
+function resolveApiUrl(): string {
+  const apiUrl = configuredApiUrl?.trim() || "/api";
+  if (apiUrl.startsWith("/") || typeof window === "undefined") {
+    return apiUrl;
+  }
+
+  try {
+    const targetUrl = new URL(apiUrl);
+    if (isLocalHost(targetUrl.hostname) && !isLocalHost(window.location.hostname)) {
+      return "/api";
+    }
+    if (window.location.protocol === "https:" && targetUrl.protocol === "http:") {
+      return "/api";
+    }
+  } catch {
+    return apiUrl;
+  }
+
+  return apiUrl;
+}
+
+const API_URL = resolveApiUrl();
 
 function resolveWsUrl(): string {
   if (configuredWsUrl && configuredWsUrl.trim()) {
@@ -14,10 +42,14 @@ function resolveWsUrl(): string {
 
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${protocol}//${window.location.hostname}:8000`;
+    const backendPort = configuredBackendPort?.trim() || "8000";
+    const portSuffix = backendPort ? `:${backendPort}` : "";
+    return `${protocol}//${window.location.hostname}${portSuffix}`;
   }
 
-  return "ws://localhost:8000";
+  const backendPort = configuredBackendPort?.trim() || "8000";
+  const portSuffix = backendPort ? `:${backendPort}` : "";
+  return `ws://localhost${portSuffix}`;
 }
 
 const WS_URL = resolveWsUrl();

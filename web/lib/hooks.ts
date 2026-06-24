@@ -57,12 +57,12 @@ function buildAttachmentContext(attachments: ChatAttachment[]): string {
   return `\n\n[Chat attachments]\n${details.join("\n\n")}`;
 }
 
-async function getJarvisToken(): Promise<string> {
+async function getJarvisAuth(): Promise<{ token: string; wsUrl?: string }> {
   const response = await fetch("/api/auth/jarvis-token", { cache: "no-store" });
   if (!response.ok) throw new Error("Authentication required");
-  const data = (await response.json()) as { token?: string };
+  const data = (await response.json()) as { token?: string; wsUrl?: string };
   if (!data.token) throw new Error("Authentication token missing");
-  return data.token;
+  return { token: data.token, wsUrl: data.wsUrl };
 }
 
 function useCollection<T>(path: string) {
@@ -563,13 +563,13 @@ export function useJarvisChat(initialSessionId?: string) {
       streamingIdRef.current = null;
     };
 
-    getJarvisToken()
-      .then((token) => {
+    getJarvisAuth()
+      .then(({ token, wsUrl }) => {
         if (cancelled) return;
 
-        const wsUrl = new URL(`${WS_URL}/ws/chat`);
-        wsUrl.searchParams.set("token", token);
-        ws = new WebSocket(wsUrl.toString());
+        const socketUrl = new URL(`${wsUrl ?? WS_URL}/ws/chat`);
+        socketUrl.searchParams.set("token", token);
+        ws = new WebSocket(socketUrl.toString());
         wsRef.current = ws;
 
         ws.onopen = () => {

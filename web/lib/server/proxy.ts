@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions, isAllowedEmail } from "@/auth";
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8000";
+const BACKEND_API_URL = process.env.BACKEND_API_URL ?? `http://localhost:${process.env.API_PORT ?? "8000"}`;
 
 export async function proxyRequest(request: Request, path: string[]) {
   const session = await getServerSession(authOptions);
@@ -24,12 +24,20 @@ export async function proxyRequest(request: Request, path: string[]) {
   headers.set("x-jarvis-internal-auth", process.env.BACKEND_INTERNAL_AUTH_TOKEN);
   headers.set("x-jarvis-user-email", email!.trim().toLowerCase());
 
-  const response = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
-    duplex: "half",
-  } as RequestInit & { duplex: "half" });
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer(),
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+  } catch {
+    return Response.json(
+      { detail: `Could not reach Jarvis backend at ${targetUrl.origin}. Check BACKEND_API_URL and that the backend is running.` },
+      { status: 503 }
+    );
+  }
 
   return new Response(response.body, {
     status: response.status,
